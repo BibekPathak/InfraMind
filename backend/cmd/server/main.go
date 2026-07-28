@@ -49,6 +49,8 @@ func main() {
 
 	bus := eventbus.New()
 
+	emqxClient := mqtt.NewEMQXClient(cfg.MQTT.APIURL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword)
+
 	// Repositories
 	assetRepo := asset.NewRepository(pool)
 	deviceRepo := device.NewRepository(pool)
@@ -56,7 +58,7 @@ func main() {
 
 	// Services
 	assetSvc := asset.NewService(assetRepo)
-	deviceSvc := device.NewService(deviceRepo)
+	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL)
 
 	// Telemetry ingester (wired to MQTT)

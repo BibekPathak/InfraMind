@@ -30,7 +30,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	d, err := h.svc.Register(r.Context(), req)
+	d, mqttUser, mqttPass, err := h.svc.Register(r.Context(), req)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -38,9 +38,15 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 
 	h.bus.Publish(eventbus.NewEvent("device.registered", "backend", d))
 
+	resp := RegistrationResponse{
+		Device:       *d,
+		MQTTUsername: mqttUser,
+		MQTTPassword: mqttPass,
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(d)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {

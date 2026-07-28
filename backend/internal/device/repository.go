@@ -20,9 +20,9 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) Create(ctx context.Context, d *Device) error {
 	loc, _ := json.Marshal(d.Location)
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO devices (id, asset_id, firmware_version, status, location, last_heartbeat, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
-		d.ID, d.AssetID, d.FirmwareVersion, d.Status, loc, d.LastHeartbeat, time.Now().UTC(),
+		`INSERT INTO devices (id, asset_id, firmware_version, status, location, last_heartbeat, mqtt_username, mqtt_password, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9)`,
+		d.ID, d.AssetID, d.FirmwareVersion, d.Status, loc, d.LastHeartbeat, d.MQTTUsername, d.MQTTPassword, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("insert device: %w", err)
@@ -36,9 +36,9 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Device, error) {
 	var deletedAt *time.Time
 
 	err := r.pool.QueryRow(ctx,
-		`SELECT id, asset_id, firmware_version, status, location, last_heartbeat, created_at, updated_at, deleted_at
+		`SELECT id, asset_id, firmware_version, status, location, last_heartbeat, mqtt_username, mqtt_password, created_at, updated_at, deleted_at
 		 FROM devices WHERE id = $1 AND deleted_at IS NULL`, id,
-	).Scan(&d.ID, &d.AssetID, &d.FirmwareVersion, &d.Status, &loc, &d.LastHeartbeat, &d.CreatedAt, &d.UpdatedAt, &deletedAt)
+	).Scan(&d.ID, &d.AssetID, &d.FirmwareVersion, &d.Status, &loc, &d.LastHeartbeat, &d.MQTTUsername, &d.MQTTPassword, &d.CreatedAt, &d.UpdatedAt, &deletedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get device %s: %w", id, err)
 	}
@@ -51,7 +51,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Device, error) {
 
 func (r *Repository) ListByAsset(ctx context.Context, assetID string) ([]Device, error) {
 	rows, err := r.pool.Query(ctx,
-		`SELECT id, asset_id, firmware_version, status, location, last_heartbeat, created_at, updated_at
+		`SELECT id, asset_id, firmware_version, status, location, last_heartbeat, mqtt_username, created_at, updated_at
 		 FROM devices WHERE asset_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC`, assetID)
 	if err != nil {
 		return nil, fmt.Errorf("list devices by asset: %w", err)
@@ -62,7 +62,7 @@ func (r *Repository) ListByAsset(ctx context.Context, assetID string) ([]Device,
 	for rows.Next() {
 		var d Device
 		var loc []byte
-		if err := rows.Scan(&d.ID, &d.AssetID, &d.FirmwareVersion, &d.Status, &loc, &d.LastHeartbeat, &d.CreatedAt, &d.UpdatedAt); err != nil {
+		if err := rows.Scan(&d.ID, &d.AssetID, &d.FirmwareVersion, &d.Status, &loc, &d.LastHeartbeat, &d.MQTTUsername, &d.CreatedAt, &d.UpdatedAt); err != nil {
 			return nil, fmt.Errorf("scan device: %w", err)
 		}
 		if loc != nil {
