@@ -69,6 +69,14 @@ func (s *Service) HandleHeartbeat(ctx context.Context, deviceID string) error {
 	return s.repo.UpdateHeartbeat(ctx, deviceID)
 }
 
+func (s *Service) GetConfig(ctx context.Context, id string) (map[string]any, error) {
+	return s.repo.GetConfig(ctx, id)
+}
+
+func (s *Service) UpdateConfig(ctx context.Context, id string, config map[string]any) error {
+	return s.repo.UpdateConfig(ctx, id, config)
+}
+
 func generatePassword(length int) string {
 	b := make([]byte, length)
 	if _, err := rand.Read(b); err != nil {

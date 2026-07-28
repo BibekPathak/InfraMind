@@ -83,3 +83,31 @@ func (r *Repository) UpdateHeartbeat(ctx context.Context, id string) error {
 	}
 	return nil
 }
+
+func (r *Repository) GetConfig(ctx context.Context, id string) (map[string]any, error) {
+	var configBytes []byte
+	err := r.pool.QueryRow(ctx,
+		`SELECT config FROM devices WHERE id = $1 AND deleted_at IS NULL`, id,
+	).Scan(&configBytes)
+	if err != nil {
+		return nil, fmt.Errorf("get config %s: %w", id, err)
+	}
+	var cfg map[string]any
+	if configBytes != nil {
+		if err := json.Unmarshal(configBytes, &cfg); err != nil {
+			return nil, fmt.Errorf("unmarshal config: %w", err)
+		}
+	}
+	return cfg, nil
+}
+
+func (r *Repository) UpdateConfig(ctx context.Context, id string, config map[string]any) error {
+	cfgBytes, _ := json.Marshal(config)
+	_, err := r.pool.Exec(ctx,
+		`UPDATE devices SET config = $2, updated_at = NOW() WHERE id = $1 AND deleted_at IS NULL`,
+		id, cfgBytes)
+	if err != nil {
+		return fmt.Errorf("update config %s: %w", id, err)
+	}
+	return nil
+}

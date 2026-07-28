@@ -21,6 +21,8 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/devices", h.Create)
 	r.Get("/devices/{id}", h.GetByID)
 	r.Post("/devices/{id}/heartbeat", h.Heartbeat)
+	r.Get("/devices/{id}/config", h.GetConfig)
+	r.Put("/devices/{id}/config", h.UpdateConfig)
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -68,4 +70,34 @@ func (h *Handler) Heartbeat(w http.ResponseWriter, r *http.Request) {
 	}
 	h.bus.Publish(eventbus.NewEvent("device.heartbeat", "backend", map[string]string{"deviceId": id}))
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *Handler) GetConfig(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	cfg, err := h.svc.GetConfig(r.Context(), id)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(cfg)
+}
+
+func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req ConfigUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+		return
+	}
+	if err := h.svc.UpdateConfig(r.Context(), id, req.Config); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	h.bus.Publish(eventbus.NewEvent("device.configuration_updated", "backend", map[string]any{
+		"deviceId": id,
+		"config":   req.Config,
+	}))
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(req.Config)
 }
