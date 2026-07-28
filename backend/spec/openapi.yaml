@@ -1,0 +1,298 @@
+openapi: "3.1.0"
+info:
+  title: InfraMind API
+  version: "0.1.0"
+  description: Autonomous Infrastructure Intelligence Platform
+
+servers:
+  - url: http://localhost:8080/api/v1
+
+paths:
+  /health:
+    get:
+      summary: Service health check
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string }
+                  service: { type: string }
+
+  /assets:
+    get:
+      summary: List all assets
+      responses:
+        "200":
+          description: Asset list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asset"
+    post:
+      summary: Create an asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAssetRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
+  /assets/{id}:
+    get:
+      summary: Get asset by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Asset detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+    delete:
+      summary: Soft delete an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "204":
+          description: Deleted
+
+  /assets/{id}/devices:
+    get:
+      summary: List devices for an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Device list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Device"
+
+  /devices:
+    post:
+      summary: Register a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "201":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+  /devices/{id}:
+    get:
+      summary: Get device by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Device detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Device"
+
+  /devices/{id}/heartbeat:
+    post:
+      summary: Update device heartbeat
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Heartbeat updated
+
+  /devices/{id}/telemetry:
+    get:
+      summary: Query telemetry history
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+      responses:
+        "200":
+          description: Telemetry points
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Telemetry"
+
+  /telemetry/live:
+    get:
+      summary: Get latest telemetry for a device
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Latest telemetry
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Telemetry"
+
+  /health/{deviceId}:
+    get:
+      summary: Calculate health score for a device
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: temperature
+          in: query
+          schema: { type: number }
+        - name: current
+          in: query
+          schema: { type: number }
+        - name: voltage
+          in: query
+          schema: { type: number }
+        - name: humidity
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: Health score
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthScore"
+
+  /alerts:
+    get:
+      summary: List alerts
+      responses:
+        "200":
+          description: Alert list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+components:
+  schemas:
+    Asset:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        type: { type: string }
+        location: { type: object }
+        metadata: { type: object }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateAssetRequest:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        type: { type: string, default: transformer }
+        location: { type: object }
+        metadata: { type: object }
+
+    Device:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        assetId: { type: string, format: uuid }
+        firmwareVersion: { type: string }
+        status: { type: string }
+        location: { type: object }
+        lastHeartbeat: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    RegisterDeviceRequest:
+      type: object
+      required: [assetId]
+      properties:
+        assetId: { type: string, format: uuid }
+        firmwareVersion: { type: string }
+        location: { type: object }
+
+    Telemetry:
+      type: object
+      properties:
+        time: { type: string, format: date-time }
+        deviceId: { type: string, format: uuid }
+        temperature: { type: number }
+        current: { type: number }
+        voltage: { type: number }
+        humidity: { type: number }
+
+    HealthScore:
+      type: object
+      properties:
+        score: { type: number }
+        level: { type: string, enum: [healthy, warning, critical] }
+        factors:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              impact: { type: number }
+
+    Alert:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        severity: { type: string, enum: [info, warning, critical] }
+        rule: { type: string }
+        message: { type: string }
+        status: { type: string, enum: [open, acknowledged, resolved] }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
