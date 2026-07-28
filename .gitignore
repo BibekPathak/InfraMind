@@ -1,0 +1,52 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Build outputs
+backend/server
+simulator/simulator
+*.exe
+*.out
+
+# Go
+*.test
+*.test.exe
+*.out
+go.work
+
+# Next.js
+.next/
+out/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+*.local
+
+# Logs
+*.log
+
+# Docker
+pgdata/
+
+# Coverage
+coverage/
+coverage.out

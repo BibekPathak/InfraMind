@@ -1,0 +1,122 @@
+services:
+  emqx:
+    image: emqx/emqx:latest
+    container_name: infra-emqx
+    ports:
+      - "1883:1883"
+      - "8083:8083"
+      - "18083:18083"
+    environment:
+      EMQX_DASHBOARD__DEFAULT_PASSWORD: infra123
+    networks:
+      - infra-net
+    healthcheck:
+      test: ["CMD", "emqx", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: infra-timescaledb
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: infra
+      POSTGRES_PASSWORD: infra
+      POSTGRES_DB: inframind
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - infra-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U infra -d inframind"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: infra-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - infra-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: ../deployments/docker/backend.Dockerfile
+    container_name: infra-backend
+    ports:
+      - "8080:8080"
+    environment:
+      INFRA_SERVER_PORT: "8080"
+      INFRA_DB_URL: "postgres://infra:infra@timescaledb:5432/inframind?sslmode=disable"
+      INFRA_MQTT_URL: "mqtt://emqx:1883"
+      INFRA_REDIS_URL: "redis://redis:6379"
+      INFRA_AI_URL: "http://ai:9090"
+    depends_on:
+      emqx:
+        condition: service_healthy
+      timescaledb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - infra-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: ../deployments/docker/frontend.Dockerfile
+    container_name: infra-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8080"
+    depends_on:
+      - backend
+    networks:
+      - infra-net
+
+  ai:
+    build:
+      context: ./ai
+      dockerfile: ../deployments/docker/ai.Dockerfile
+    container_name: infra-ai
+    ports:
+      - "9090:9090"
+    depends_on:
+      - backend
+    networks:
+      - infra-net
+
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: ../deployments/docker/simulator.Dockerfile
+    container_name: infra-simulator
+    environment:
+      INFRA_MQTT_URL: "mqtt://emqx:1883"
+      INFRA_DEVICE_ID: "tx-001"
+      INFRA_INTERVAL_MS: "2000"
+    depends_on:
+      emqx:
+        condition: service_healthy
+    networks:
+      - infra-net
+    profiles:
+      - sim
+
+networks:
+  infra-net:
+    driver: bridge
+
+volumes:
+  pgdata:
