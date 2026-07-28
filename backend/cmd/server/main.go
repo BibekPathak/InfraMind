@@ -79,6 +79,9 @@ func main() {
 		os.Exit(1)
 	}
 
+	heartbeatMon := device.NewHeartbeatMonitor(pool, bus)
+	go heartbeatMon.Start(ctx)
+
 	// Router
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
