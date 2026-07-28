@@ -11,6 +11,10 @@ type Config struct {
 	MQTTURL    string
 	DeviceID   string
 	IntervalMs int
+
+	MQTTUsername string
+	MQTTPassword string
+	BackendURL   string
 }
 
 func Load() (*Config, error) {
@@ -23,9 +27,12 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		MQTTURL:    k.String("mqtt__url"),
-		DeviceID:   k.String("device__id"),
-		IntervalMs: k.Int("interval__ms"),
+		MQTTURL:      k.String("mqtt__url"),
+		DeviceID:     k.String("device__id"),
+		IntervalMs:   k.Int("interval__ms"),
+		MQTTUsername: k.String("mqtt__username"),
+		MQTTPassword: k.String("mqtt__password"),
+		BackendURL:   k.String("backend__url"),
 	}
 
 	if cfg.MQTTURL == "" {
@@ -36,6 +43,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.IntervalMs <= 0 {
 		cfg.IntervalMs = 2000
+	}
+	if cfg.BackendURL == "" {
+		cfg.BackendURL = "http://localhost:8080"
 	}
 
 	return cfg, nil

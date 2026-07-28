@@ -116,8 +116,8 @@ services:
       INFRA_MQTT_URL: "mqtt://emqx:1883"
       INFRA_DEVICE_ID: "tx-001"
       INFRA_INTERVAL_MS: "2000"
-      INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"
-      INFRA_MQTT_ADMIN_PASSWORD: "mqtt_admin_secret"
+      INFRA_MQTT_USERNAME: "mqtt_admin"
+      INFRA_MQTT_PASSWORD: "mqtt_admin_secret"
       INFRA_BACKEND_URL: "http://backend:8080"
     depends_on:
       emqx:

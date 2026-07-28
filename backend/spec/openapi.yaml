@@ -109,7 +109,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Device"
+                $ref: "#/components/schemas/RegistrationResponse"
 
   /devices/{id}:
     get:
@@ -138,6 +138,45 @@ paths:
       responses:
         "200":
           description: Heartbeat updated
+
+  /devices/{id}/config:
+    get:
+      summary: Get device configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Device configuration
+          content:
+            application/json:
+              schema:
+                type: object
+    put:
+      summary: Update device configuration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                config:
+                  type: object
+      responses:
+        "200":
+          description: Configuration updated
+          content:
+            application/json:
+              schema:
+                type: object
 
   /devices/{id}/telemetry:
     get:
@@ -178,6 +217,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Telemetry"
+
+  /telemetry/ws:
+    get:
+      summary: WebSocket live stream
+      description: |
+        Upgrades to WebSocket. Sends typed event envelope:
+        ```json
+        {"type": "telemetry.updated", "timestamp": "...", "asset_id": "...", "payload": {}}
+        ```
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "101":
+          description: Switching Protocols (WebSocket upgrade)
 
   /health/{deviceId}:
     get:
@@ -261,6 +317,14 @@ components:
         assetId: { type: string, format: uuid }
         firmwareVersion: { type: string }
         location: { type: object }
+
+    RegistrationResponse:
+      type: object
+      properties:
+        device:
+          $ref: "#/components/schemas/Device"
+        mqttUsername: { type: string }
+        mqttPassword: { type: string }
 
     Telemetry:
       type: object

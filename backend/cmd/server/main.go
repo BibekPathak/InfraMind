@@ -61,8 +61,11 @@ func main() {
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL)
 
+	// WebSocket hub
+	wsHub := telemetry.NewWSHub()
+
 	// Telemetry ingester (wired to MQTT)
-	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus)
+	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus, wsHub)
 
 	// MQTT
 	mqttSub, err := mqtt.NewSubscriber(cfg.MQTT.URL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword, func(topic string, payload []byte) {
@@ -108,7 +111,7 @@ func main() {
 
 		asset.NewHandler(assetSvc, bus).Register(r)
 		device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
-		telemetry.NewHandler(telemetryRepo).Register(r)
+		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
 		alert.NewHandler().Register(r)
 		health.NewHandler(healthSvc).Register(r)
 	})
@@ -141,6 +144,7 @@ func main() {
 	<-quit
 
 	slog.Info("shutting down server...")
+	ingester.Stop()
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 

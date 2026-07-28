@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -24,6 +25,28 @@ func (r *Repository) Insert(ctx context.Context, t *Telemetry) error {
 	)
 	if err != nil {
 		return fmt.Errorf("insert telemetry: %w", err)
+	}
+	return nil
+}
+
+func (r *Repository) BatchInsert(ctx context.Context, points []Telemetry) error {
+	if len(points) == 0 {
+		return nil
+	}
+
+	rows := make([][]any, len(points))
+	for i, p := range points {
+		rows[i] = []any{p.Time, p.DeviceID, p.Temperature, p.Current, p.Voltage, p.Humidity}
+	}
+
+	_, err := r.pool.CopyFrom(
+		ctx,
+		pgx.Identifier{"telemetry"},
+		[]string{"time", "device_id", "temperature", "current_amps", "voltage", "humidity"},
+		pgx.CopyFromRows(rows),
+	)
+	if err != nil {
+		return fmt.Errorf("batch insert telemetry (%d points): %w", len(points), err)
 	}
 	return nil
 }

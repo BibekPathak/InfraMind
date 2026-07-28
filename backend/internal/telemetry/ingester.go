@@ -1,24 +1,90 @@
 package telemetry
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/inframind/backend/internal/device"
 	"github.com/inframind/backend/internal/eventbus"
 )
 
+const (
+	batchSize    = 1000
+	batchTimeout = 5 * time.Second
+)
+
 type Ingester struct {
-	repo    *Repository
-	devSvc  *device.Service
-	bus     *eventbus.Bus
+	repo      *Repository
+	devSvc    *device.Service
+	bus       *eventbus.Bus
+	hub       *WSHub
+	validator *Validator
+
+	mu          sync.Mutex
+	batch       []Telemetry
+	batchTicker *time.Ticker
+	flushCh     chan struct{}
+	doneCh      chan struct{}
 }
 
-func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus) *Ingester {
-	return &Ingester{repo: repo, devSvc: devSvc, bus: bus}
+func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hub *WSHub) *Ingester {
+	ing := &Ingester{
+		repo:      repo,
+		devSvc:    devSvc,
+		bus:       bus,
+		hub:       hub,
+		validator: NewValidator(),
+		batch:     make([]Telemetry, 0, batchSize),
+		batchTicker: time.NewTicker(batchTimeout),
+		flushCh:   make(chan struct{}),
+		doneCh:    make(chan struct{}),
+	}
+
+	go ing.batchLoop()
+	return ing
+}
+
+func (ing *Ingester) batchLoop() {
+	for {
+		select {
+		case <-ing.batchTicker.C:
+			ing.flush()
+		case <-ing.flushCh:
+			ing.flush()
+		case <-ing.doneCh:
+			ing.flush()
+			return
+		}
+	}
+}
+
+func (ing *Ingester) flush() {
+	ing.mu.Lock()
+	if len(ing.batch) == 0 {
+		ing.mu.Unlock()
+		return
+	}
+	batch := ing.batch
+	ing.batch = make([]Telemetry, 0, batchSize)
+	ing.mu.Unlock()
+
+	if err := ing.repo.BatchInsert(nil, batch); err != nil {
+		slog.Error("batch insert failed", "error", err, "count", len(batch))
+		for _, t := range batch {
+			if err := ing.repo.Insert(nil, &t); err != nil {
+				slog.Error("fallback insert failed", "error", err, "deviceId", t.DeviceID)
+			}
+		}
+	} else {
+		slog.Debug("batch inserted", "count", len(batch))
+	}
+}
+
+func (ing *Ingester) Stop() {
+	close(ing.doneCh)
 }
 
 func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
@@ -26,24 +92,20 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 		return
 	}
 
-	parts := strings.Split(topic, "/")
-	if len(parts) < 2 {
-		slog.Warn("invalid telemetry topic", "topic", topic)
+	result := ing.validator.Validate(topic, payload)
+	if !result.Valid {
+		slog.Warn("telemetry validation failed", "topic", topic, "reason", result.Message)
 		return
 	}
 
-	var p TelemetryPayload
-	if err := json.Unmarshal(payload, &p); err != nil {
-		slog.Warn("invalid telemetry payload", "error", err, "topic", topic)
-		return
-	}
+	p := result.Payload
 
 	ts, err := time.Parse(time.RFC3339, p.Timestamp)
 	if err != nil {
 		ts = time.Now().UTC()
 	}
 
-	t := &Telemetry{
+	t := Telemetry{
 		Time:        ts,
 		DeviceID:    p.DeviceID,
 		Temperature: p.Temperature,
@@ -52,9 +114,13 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 		Humidity:    p.Humidity,
 	}
 
-	if err := ing.repo.Insert(nil, t); err != nil {
-		slog.Error("failed to persist telemetry", "error", err, "deviceId", p.DeviceID)
-		return
+	ing.mu.Lock()
+	ing.batch = append(ing.batch, t)
+	shouldFlush := len(ing.batch) >= batchSize
+	ing.mu.Unlock()
+
+	if shouldFlush {
+		ing.flush()
 	}
 
 	if err := ing.devSvc.HandleHeartbeat(nil, p.DeviceID); err != nil {
@@ -72,13 +138,19 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 		"temperature", p.Temperature,
 		"scenario", p.Scenario,
 	)
+
+	ing.hub.Broadcast(p.DeviceID, WSEvent{
+		Type:      "telemetry.updated",
+		Timestamp: ts.Format(time.RFC3339),
+		AssetID:   p.DeviceID,
+		Payload:   t,
+	})
 }
 
 func (ing *Ingester) IngestTelemetry(t *Telemetry) error {
 	if err := ing.repo.Insert(nil, t); err != nil {
 		return fmt.Errorf("ingest telemetry: %w", err)
 	}
-
 	ing.bus.Publish(eventbus.NewEvent("telemetry.ingested", "backend", t))
 	return nil
 }

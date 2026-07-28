@@ -1,11 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Nav from '@/components/Nav'
 import TelemetryChart from '@/components/TelemetryChart'
 import DeviceCard from '@/components/DeviceCard'
 import HealthBadge from '@/components/HealthBadge'
-import { getLiveTelemetry, getTelemetry, getHealth, TelemetryPoint, HealthScore } from '@/lib/api'
+import LiveStream from '@/components/LiveStream'
+import { getHealth, getTelemetry, TelemetryPoint, HealthScore } from '@/lib/api'
 
 const DEVICE_ID = 'tx-001'
 
@@ -15,27 +16,30 @@ export default function Dashboard() {
   const [health, setHealth] = useState<HealthScore | null>(null)
   const [scenario, setScenario] = useState<string>('')
 
-  useEffect(() => {
-    const fetchLive = async () => {
-      try {
-        const t = await getLiveTelemetry(DEVICE_ID)
-        setLive(t)
-        setHistory(prev => [...prev.slice(-59), t])
+  const handleTelemetry = useCallback((t: TelemetryPoint) => {
+    setLive(t)
+    setHistory(prev => [...prev.slice(-59), t])
+  }, [])
 
-        const h = await getHealth(DEVICE_ID, t)
+  useEffect(() => {
+    const pollHealth = async () => {
+      if (!live) return
+      try {
+        const h = await getHealth(DEVICE_ID, live)
         setHealth(h)
+        setScenario(h.level)
       } catch {
-        // backend not ready yet
+        // ignore
       }
     }
-
-    fetchLive()
-    const interval = setInterval(fetchLive, 3000)
+    pollHealth()
+    const interval = setInterval(pollHealth, 10000)
     return () => clearInterval(interval)
-  }, [])
+  }, [live])
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a' }}>
+      <LiveStream deviceId={DEVICE_ID} onTelemetry={handleTelemetry} />
       <Nav />
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
         <h1 style={{ fontSize: 24, margin: '0 0 24px' }}>Dashboard</h1>

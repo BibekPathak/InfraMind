@@ -10,15 +10,17 @@ import (
 
 type Handler struct {
 	repo *Repository
+	hub  *WSHub
 }
 
-func NewHandler(repo *Repository) *Handler {
-	return &Handler{repo: repo}
+func NewHandler(repo *Repository, hub *WSHub) *Handler {
+	return &Handler{repo: repo, hub: hub}
 }
 
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/devices/{id}/telemetry", h.Query)
 	r.Get("/telemetry/live", h.Live)
+	r.Get("/telemetry/ws", h.WebSocket)
 }
 
 func (h *Handler) Query(w http.ResponseWriter, r *http.Request) {
@@ -69,4 +71,8 @@ func (h *Handler) Live(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(t)
+}
+
+func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {
+	h.hub.HandleWebSocket(w, r)
 }
