@@ -26,7 +26,10 @@ type DBConfig struct {
 }
 
 type MQTTConfig struct {
-	URL string
+	URL          string
+	APIURL       string
+	AdminUsername string
+	AdminPassword string
 }
 
 type RedisConfig struct {
@@ -53,9 +56,14 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Server: ServerConfig{Port: k.Int("server__port")},
 		DB:     DBConfig{URL: k.String("db__url")},
-		MQTT:   MQTTConfig{URL: k.String("mqtt__url")},
-		Redis:  RedisConfig{URL: k.String("redis__url")},
-		AI:     AIConfig{URL: k.String("ai__url")},
+		MQTT: MQTTConfig{
+			URL:          k.String("mqtt__url"),
+			APIURL:       k.String("mqtt__api__url"),
+			AdminUsername: k.String("mqtt__admin__username"),
+			AdminPassword: k.String("mqtt__admin__password"),
+		},
+		Redis: RedisConfig{URL: k.String("redis__url")},
+		AI:    AIConfig{URL: k.String("ai__url")},
 	}
 
 	if cfg.Server.Port == 0 {
@@ -66,6 +74,15 @@ func Load() (*Config, error) {
 	}
 	if cfg.MQTT.URL == "" {
 		cfg.MQTT.URL = "mqtt://localhost:1883"
+	}
+	if cfg.MQTT.APIURL == "" {
+		cfg.MQTT.APIURL = "http://localhost:18083"
+	}
+	if cfg.MQTT.AdminUsername == "" {
+		cfg.MQTT.AdminUsername = "mqtt_admin"
+	}
+	if cfg.MQTT.AdminPassword == "" {
+		cfg.MQTT.AdminPassword = "mqtt_admin_secret"
 	}
 	if cfg.Redis.URL == "" {
 		cfg.Redis.URL = "redis://localhost:6379"

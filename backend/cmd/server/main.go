@@ -63,7 +63,7 @@ func main() {
 	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus)
 
 	// MQTT
-	mqttSub, err := mqtt.NewSubscriber(cfg.MQTT.URL, func(topic string, payload []byte) {
+	mqttSub, err := mqtt.NewSubscriber(cfg.MQTT.URL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword, func(topic string, payload []byte) {
 		ingester.HandleMQTTMessage(topic, payload)
 	})
 	if err != nil {

@@ -8,6 +8,13 @@ services:
       - "18083:18083"
     environment:
       EMQX_DASHBOARD__DEFAULT_PASSWORD: infra123
+      EMQX_AUTH__BUILTIN__TYPE: internal
+      EMQX_AUTH__BUILTIN__ADMIN_USERNAME: mqtt_admin
+      EMQX_AUTH__BUILTIN__ADMIN_PASSWORD: mqtt_admin_secret
+      EMQX_AUTHORIZATION__SOURCES__1__TYPE: built_in_database
+      EMQX_AUTHORIZATION__NO_MATCH: deny
+    volumes:
+      - emqx-data:/opt/emqx/data
     networks:
       - infra-net
     healthcheck:
@@ -61,6 +68,9 @@ services:
       INFRA_MQTT_URL: "mqtt://emqx:1883"
       INFRA_REDIS_URL: "redis://redis:6379"
       INFRA_AI_URL: "http://ai:9090"
+      INFRA_MQTT_API_URL: "http://emqx:18083"
+      INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"
+      INFRA_MQTT_ADMIN_PASSWORD: "mqtt_admin_secret"
     depends_on:
       emqx:
         condition: service_healthy
@@ -106,6 +116,9 @@ services:
       INFRA_MQTT_URL: "mqtt://emqx:1883"
       INFRA_DEVICE_ID: "tx-001"
       INFRA_INTERVAL_MS: "2000"
+      INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"
+      INFRA_MQTT_ADMIN_PASSWORD: "mqtt_admin_secret"
+      INFRA_BACKEND_URL: "http://backend:8080"
     depends_on:
       emqx:
         condition: service_healthy
@@ -120,3 +133,4 @@ networks:
 
 volumes:
   pgdata:
+  emqx-data:

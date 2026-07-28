@@ -8,18 +8,20 @@ import (
 )
 
 type Subscriber struct {
-	client   mqtt.Client
-	onMsg    func(topic string, payload []byte)
+	client mqtt.Client
+	onMsg  func(topic string, payload []byte)
 }
 
-func NewSubscriber(url string, onMsg func(topic string, payload []byte)) (*Subscriber, error) {
+func NewSubscriber(url, username, password string, onMsg func(topic string, payload []byte)) (*Subscriber, error) {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(url)
 	opts.SetClientID("infra-backend")
+	opts.SetUsername(username)
+	opts.SetPassword(password)
 	opts.SetCleanSession(true)
 	opts.SetAutoReconnect(true)
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
-		slog.Info("mqtt connected", "broker", url)
+		slog.Info("mqtt connected", "broker", url, "username", username)
 	})
 	opts.SetConnectionLostHandler(func(c mqtt.Client, err error) {
 		slog.Error("mqtt connection lost", "error", err)
