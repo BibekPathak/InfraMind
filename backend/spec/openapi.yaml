@@ -22,6 +22,40 @@ paths:
                   status: { type: string }
                   service: { type: string }
 
+  /auth/login:
+    post:
+      summary: Authenticate and receive JWT token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+
+  /auth/register:
+    post:
+      summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterUserRequest"
+      responses:
+        "201":
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenResponse"
+
   /assets:
     get:
       summary: List all assets
@@ -218,6 +252,33 @@ paths:
               schema:
                 $ref: "#/components/schemas/Telemetry"
 
+  /telemetry/aggregate:
+    get:
+      summary: Get aggregated telemetry over time windows
+      parameters:
+        - name: device_id
+          in: query
+          required: true
+          schema: { type: string, format: uuid }
+        - name: from
+          in: query
+          schema: { type: string, format: date-time }
+        - name: to
+          in: query
+          schema: { type: string, format: date-time }
+        - name: window
+          in: query
+          schema: { type: string, default: "5m", description: "time bucket (e.g. 1m, 5m, 1h)" }
+      responses:
+        "200":
+          description: Aggregated telemetry
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AggregatedTelemetry"
+
   /telemetry/ws:
     get:
       summary: WebSocket live stream
@@ -265,7 +326,23 @@ paths:
 
   /alerts:
     get:
-      summary: List alerts
+      summary: List alerts with optional filters
+      parameters:
+        - name: device_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, acknowledged, resolved] }
+        - name: severity
+          in: query
+          schema: { type: string, enum: [info, warning, critical] }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
       responses:
         "200":
           description: Alert list
@@ -275,6 +352,54 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}:
+    get:
+      summary: Get alert by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Alert detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}/acknowledge:
+    patch:
+      summary: Acknowledge an alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Alert acknowledged
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
+
+  /alerts/{id}/resolve:
+    patch:
+      summary: Resolve an alert
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Alert resolved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Alert"
 
 components:
   schemas:
@@ -360,3 +485,37 @@ components:
         status: { type: string, enum: [open, acknowledged, resolved] }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string }
+
+    RegisterUserRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 6 }
+        displayName: { type: string }
+
+    TokenResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        userId: { type: string }
+        role: { type: string, enum: [admin, operator, viewer] }
+        displayName: { type: string }
+
+    AggregatedTelemetry:
+      type: object
+      properties:
+        bucket: { type: string, format: date-time }
+        avgTemp: { type: number, nullable: true }
+        maxTemp: { type: number, nullable: true }
+        minTemp: { type: number, nullable: true }
+        avgCurrent: { type: number, nullable: true }
+        maxCurrent: { type: number, nullable: true }
+        avgVoltage: { type: number, nullable: true }

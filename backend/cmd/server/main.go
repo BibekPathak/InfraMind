@@ -47,6 +47,9 @@ func main() {
 	defer pool.Close()
 	slog.Info("database connected")
 
+	auth.InitJWT(cfg.Auth.JWTSecret)
+	authSvc := auth.NewAuthService(auth.NewJWTManager(cfg.Auth.JWTSecret))
+
 	bus := eventbus.New()
 
 	emqxClient := mqtt.NewEMQXClient(cfg.MQTT.APIURL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword)
@@ -55,14 +58,20 @@ func main() {
 	assetRepo := asset.NewRepository(pool)
 	deviceRepo := device.NewRepository(pool)
 	telemetryRepo := telemetry.NewRepository(pool)
+	alertRepo := alert.NewRepository(pool)
 
 	// Services
 	assetSvc := asset.NewService(assetRepo)
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL)
+	alertSvc := alert.NewService(alertRepo)
 
 	// WebSocket hub
 	wsHub := telemetry.NewWSHub()
+
+	// Notifier + Alert engine
+	notifier := alert.NewLogNotifier()
+	alertEngine := alert.NewEngine(alertSvc, bus, notifier, telemetryRepo)
 
 	// Telemetry ingester (wired to MQTT)
 	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus, wsHub)
@@ -84,6 +93,8 @@ func main() {
 
 	heartbeatMon := device.NewHeartbeatMonitor(pool, bus)
 	go heartbeatMon.Start(ctx)
+
+	go alertEngine.Start(ctx)
 
 	// Router
 	r := chi.NewRouter()
@@ -112,15 +123,16 @@ func main() {
 		asset.NewHandler(assetSvc, bus).Register(r)
 		device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
 		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
-		alert.NewHandler().Register(r)
+		alert.NewHandler(alertSvc, bus).Register(r)
 		health.NewHandler(healthSvc).Register(r)
+		auth.NewHandler(authSvc).RegisterRoutes(r)
 	})
 
 	// Register event subscriptions
 	asset.RegisterEvents(bus)
 	device.RegisterEvents(bus)
 	telemetry.RegisterEvents(bus)
-	alert.RegisterEvents(bus)
+	alert.RegisterEvents(bus, alertSvc)
 
 	// Server
 	srv := &http.Server{

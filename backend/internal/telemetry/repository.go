@@ -92,3 +92,45 @@ func (r *Repository) GetLatest(ctx context.Context, deviceID string) (*Telemetry
 	}
 	return t, nil
 }
+
+type AggregatedPoint struct {
+	Bucket      time.Time `json:"bucket"`
+	AvgTemp     *float64  `json:"avgTemp"`
+	MaxTemp     *float64  `json:"maxTemp"`
+	MinTemp     *float64  `json:"minTemp"`
+	AvgCurrent  *float64  `json:"avgCurrent"`
+	MaxCurrent  *float64  `json:"maxCurrent"`
+	AvgVoltage  *float64  `json:"avgVoltage"`
+}
+
+func (r *Repository) Aggregate(ctx context.Context, deviceID string, from, to time.Time, window string) ([]AggregatedPoint, error) {
+	query := fmt.Sprintf(`
+		SELECT
+			time_bucket('%s', time) AS bucket,
+			AVG(temperature), MAX(temperature), MIN(temperature),
+			AVG(current_amps), MAX(current_amps),
+			AVG(voltage)
+		FROM telemetry
+		WHERE device_id = $1 AND time >= $2 AND time <= $3
+		GROUP BY bucket
+		ORDER BY bucket ASC`, window)
+
+	rows, err := r.pool.Query(ctx, query, deviceID, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("aggregate telemetry: %w", err)
+	}
+	defer rows.Close()
+
+	var results []AggregatedPoint
+	for rows.Next() {
+		var p AggregatedPoint
+		if err := rows.Scan(&p.Bucket, &p.AvgTemp, &p.MaxTemp, &p.MinTemp, &p.AvgCurrent, &p.MaxCurrent, &p.AvgVoltage); err != nil {
+			return nil, fmt.Errorf("scan aggregate: %w", err)
+		}
+		results = append(results, p)
+	}
+	if results == nil {
+		results = []AggregatedPoint{}
+	}
+	return results, nil
+}

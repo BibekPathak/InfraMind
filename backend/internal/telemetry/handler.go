@@ -20,6 +20,7 @@ func NewHandler(repo *Repository, hub *WSHub) *Handler {
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/devices/{id}/telemetry", h.Query)
 	r.Get("/telemetry/live", h.Live)
+	r.Get("/telemetry/aggregate", h.Aggregate)
 	r.Get("/telemetry/ws", h.WebSocket)
 }
 
@@ -71,6 +72,44 @@ func (h *Handler) Live(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(t)
+}
+
+func (h *Handler) Aggregate(w http.ResponseWriter, r *http.Request) {
+	deviceID := r.URL.Query().Get("device_id")
+	if deviceID == "" {
+		http.Error(w, `{"error":"device_id query parameter required"}`, http.StatusBadRequest)
+		return
+	}
+
+	fromStr := r.URL.Query().Get("from")
+	toStr := r.URL.Query().Get("to")
+	window := r.URL.Query().Get("window")
+
+	from := time.Now().UTC().Add(-1 * time.Hour)
+	to := time.Now().UTC()
+
+	if fromStr != "" {
+		if t, err := time.Parse(time.RFC3339, fromStr); err == nil {
+			from = t
+		}
+	}
+	if toStr != "" {
+		if t, err := time.Parse(time.RFC3339, toStr); err == nil {
+			to = t
+		}
+	}
+	if window == "" {
+		window = "5m"
+	}
+
+	results, err := h.repo.Aggregate(r.Context(), deviceID, from, to, window)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }
 
 func (h *Handler) WebSocket(w http.ResponseWriter, r *http.Request) {

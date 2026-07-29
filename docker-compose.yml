@@ -71,6 +71,7 @@ services:
       INFRA_MQTT_API_URL: "http://emqx:18083"
       INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"
       INFRA_MQTT_ADMIN_PASSWORD: "mqtt_admin_secret"
+      INFRA_AUTH_JWT_SECRET: "infra-dev-secret-do-not-use-in-prod"
     depends_on:
       emqx:
         condition: service_healthy

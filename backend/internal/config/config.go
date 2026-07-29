@@ -15,6 +15,11 @@ type Config struct {
 	MQTT   MQTTConfig
 	Redis  RedisConfig
 	AI     AIConfig
+	Auth   AuthConfig
+}
+
+type AuthConfig struct {
+	JWTSecret string
 }
 
 type ServerConfig struct {
@@ -64,6 +69,7 @@ func Load() (*Config, error) {
 		},
 		Redis: RedisConfig{URL: k.String("redis__url")},
 		AI:    AIConfig{URL: k.String("ai__url")},
+		Auth:  AuthConfig{JWTSecret: k.String("auth__jwt__secret")},
 	}
 
 	if cfg.Server.Port == 0 {
@@ -89,6 +95,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.AI.URL == "" {
 		cfg.AI.URL = "http://localhost:9090"
+	}
+	if cfg.Auth.JWTSecret == "" {
+		cfg.Auth.JWTSecret = "infra-dev-secret-do-not-use-in-prod"
 	}
 
 	return cfg, nil
