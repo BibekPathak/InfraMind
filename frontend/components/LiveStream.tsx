@@ -10,21 +10,24 @@ export interface WSEvent {
   type: string
   timestamp: string
   asset_id: string
-  payload: TelemetryPoint
+  payload: any
 }
 
 interface Props {
   deviceId: string
-  onTelemetry: (point: TelemetryPoint) => void
+  onTelemetry?: (point: TelemetryPoint) => void
+  onTwinUpdate?: (data: any) => void
   enabled?: boolean
 }
 
-export default function LiveStream({ deviceId, onTelemetry, enabled = true }: Props) {
+export default function LiveStream({ deviceId, onTelemetry, onTwinUpdate, enabled = true }: Props) {
   const wsRef = useRef<WebSocket | null>(null)
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout>>()
   const [connected, setConnected] = useState(false)
   const onTelemetryRef = useRef(onTelemetry)
+  const onTwinUpdateRef = useRef(onTwinUpdate)
   onTelemetryRef.current = onTelemetry
+  onTwinUpdateRef.current = onTwinUpdate
 
   const connect = useCallback(() => {
     if (!enabled) return
@@ -39,8 +42,11 @@ export default function LiveStream({ deviceId, onTelemetry, enabled = true }: Pr
     ws.onmessage = (event) => {
       try {
         const evt: WSEvent = JSON.parse(event.data)
-        if (evt.type === 'telemetry.updated' && evt.payload) {
+        if (evt.type === 'telemetry.updated' && evt.payload && onTelemetryRef.current) {
           onTelemetryRef.current(evt.payload)
+        }
+        if (evt.type === 'twin.updated' && evt.payload && onTwinUpdateRef.current) {
+          onTwinUpdateRef.current(evt.payload)
         }
       } catch {
         // ignore parse errors

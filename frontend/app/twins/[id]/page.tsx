@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import Nav from '@/components/Nav'
 import TelemetryChart from '@/components/TelemetryChart'
 import HealthBadge from '@/components/HealthBadge'
+import LiveStream from '@/components/LiveStream'
 import { TelemetryPoint } from '@/lib/api'
 import { useParams } from 'next/navigation'
 
@@ -42,12 +43,12 @@ export default function TwinDetailPage() {
   const [newEventSummary, setNewEventSummary] = useState('')
   const [newEventDetails, setNewEventDetails] = useState('')
 
-  const fetchTwin = async () => {
+  const fetchTwin = useCallback(async () => {
     try {
       const res = await fetch(`${API_URL}/api/v1/twins/${id}`)
       if (res.ok) setTwin(await res.json())
     } catch {}
-  }
+  }, [id])
 
   useEffect(() => {
     const load = async () => {
@@ -61,9 +62,11 @@ export default function TwinDetailPage() {
       setLoading(false)
     }
     load()
-    const interval = setInterval(fetchTwin, 15000)
-    return () => clearInterval(interval)
-  }, [id])
+  }, [fetchTwin])
+
+  const handleTwinUpdate = useCallback((data: any) => {
+    setTwin(data)
+  }, [])
 
   const handleAddEvent = async () => {
     if (!newEventSummary) return
@@ -101,6 +104,7 @@ export default function TwinDetailPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: '#0f172a' }}>
+      <LiveStream deviceId={id} onTwinUpdate={handleTwinUpdate} />
       <Nav />
       <main style={{ maxWidth: 1200, margin: '0 auto', padding: 24 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
