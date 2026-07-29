@@ -66,11 +66,13 @@ func main() {
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL)
 	alertSvc := alert.NewService(alertRepo)
-	twinRepo := twin.NewRepository(pool)
-	twinSvc := twin.NewService(twinRepo, assetSvc, deviceSvc, telemetryRepo, healthSvc)
 
 	// WebSocket hub
 	wsHub := telemetry.NewWSHub()
+
+	twinRepo := twin.NewRepository(pool)
+	twinSvc := twin.NewService(twinRepo, assetSvc, deviceSvc, telemetryRepo, healthSvc)
+	twinSync := twin.NewSyncEngine(twinSvc, bus, wsHub)
 
 	// Notifier + Alert engine
 	notifier := alert.NewLogNotifier()
@@ -98,6 +100,8 @@ func main() {
 	go heartbeatMon.Start(ctx)
 
 	go alertEngine.Start(ctx)
+
+	go twinSync.Start(ctx)
 
 	// Router
 	r := chi.NewRouter()
