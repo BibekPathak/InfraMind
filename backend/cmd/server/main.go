@@ -23,6 +23,7 @@ import (
 	"github.com/inframind/backend/internal/health"
 	"github.com/inframind/backend/internal/mqtt"
 	"github.com/inframind/backend/internal/telemetry"
+	"github.com/inframind/backend/internal/twin"
 )
 
 func main() {
@@ -65,6 +66,8 @@ func main() {
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL)
 	alertSvc := alert.NewService(alertRepo)
+	twinRepo := twin.NewRepository(pool)
+	twinSvc := twin.NewService(twinRepo, assetSvc, deviceSvc, telemetryRepo, healthSvc)
 
 	// WebSocket hub
 	wsHub := telemetry.NewWSHub()
@@ -125,6 +128,7 @@ func main() {
 		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
 		alert.NewHandler(alertSvc, bus).Register(r)
 		health.NewHandler(healthSvc).Register(r)
+		twin.NewHandler(twinSvc, bus).Register(r)
 		auth.NewHandler(authSvc).RegisterRoutes(r)
 	})
 
