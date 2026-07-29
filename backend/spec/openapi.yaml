@@ -401,6 +401,89 @@ paths:
               schema:
                 $ref: "#/components/schemas/Alert"
 
+  /twins:
+    get:
+      summary: List all digital twins
+      responses:
+        "200":
+          description: Twin list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DigitalTwin"
+
+  /twins/{id}:
+    get:
+      summary: Get digital twin by asset ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Digital twin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DigitalTwin"
+
+  /assets/{id}/twin:
+    get:
+      summary: Get digital twin for an asset
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Digital twin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DigitalTwin"
+
+  /twins/{id}/events:
+    get:
+      summary: List maintenance events for a twin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Event list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TwinEvent"
+    post:
+      summary: Add a maintenance event to a twin
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AddTwinEventRequest"
+      responses:
+        "200":
+          description: Event added, returns updated twin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DigitalTwin"
+
 components:
   schemas:
     Asset:
@@ -519,3 +602,38 @@ components:
         avgCurrent: { type: number, nullable: true }
         maxCurrent: { type: number, nullable: true }
         avgVoltage: { type: number, nullable: true }
+
+    DigitalTwin:
+      type: object
+      properties:
+        assetId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid, nullable: true }
+        metadata: { type: object }
+        liveState: { type: object }
+        maintenanceHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/TwinEvent"
+        aiSummary: { type: string }
+        healthScore: { type: number, nullable: true }
+        healthLevel: { type: string, nullable: true, enum: [healthy, warning, critical] }
+        syncedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    TwinEvent:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string, enum: [inspection, repair, replacement, firmware_update] }
+        timestamp: { type: string, format: date-time }
+        summary: { type: string }
+        details: { type: string }
+
+    AddTwinEventRequest:
+      type: object
+      required: [type, summary]
+      properties:
+        type: { type: string, enum: [inspection, repair, replacement, firmware_update] }
+        summary: { type: string }
+        details: { type: string }
