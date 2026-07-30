@@ -4,30 +4,98 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	"io"
+	"log/slog"
 	"net/http"
-	"time"
+
+	"github.com/inframind/backend/internal/telemetry"
 )
 
 type Service struct {
-	aiURL string
+	aiURL         string
+	telemetryRepo *telemetry.Repository
 }
 
-func NewService(aiURL string) *Service {
-	return &Service{aiURL: aiURL}
+func NewService(aiURL string, telemetryRepo *telemetry.Repository) *Service {
+	return &Service{aiURL: aiURL, telemetryRepo: telemetryRepo}
 }
 
 type aiRequest struct {
+	Temperature float64        `json:"temperature"`
+	Current     float64        `json:"current"`
+	Voltage     float64        `json:"voltage"`
+	Humidity    float64        `json:"humidity"`
+	History     []telemetryPoint `json:"history,omitempty"`
+}
+
+type telemetryPoint struct {
 	Temperature float64 `json:"temperature"`
 	Current     float64 `json:"current"`
 	Voltage     float64 `json:"voltage"`
 	Humidity    float64 `json:"humidity"`
 }
 
-type aiResponse struct {
+type aiHealthResponse struct {
 	Score   float64        `json:"score"`
 	Level   string         `json:"level"`
-	Factors []HealthFactor `json:"factors"`
+	Factors []aiFactor    `json:"factors"`
+}
+
+type aiFactor struct {
+	Name    string  `json:"name"`
+	Impact  float64 `json:"impact"`
+	Details string  `json:"details"`
+}
+
+type aiAnalysisResponse struct {
+	HealthScore   float64            `json:"health_score"`
+	HealthLevel   string             `json:"health_level"`
+	HealthFactors []aiFactor         `json:"health_factors"`
+	Anomalies     []aiAnomaly        `json:"anomalies"`
+	FailurePrediction *aiPrediction  `json:"failure_prediction"`
+	Recommendations  []aiRecommendation `json:"recommendations"`
+}
+
+type aiAnomaly struct {
+	Metric      string  `json:"metric"`
+	Severity    string  `json:"severity"`
+	Description string  `json:"description"`
+	Value       float64 `json:"value"`
+	Expected    float64 `json:"expected"`
+}
+
+type aiPrediction struct {
+	TimeToWarningHours  *float64 `json:"time_to_warning_hours"`
+	TimeToCriticalHours *float64 `json:"time_to_critical_hours"`
+	Confidence          float64  `json:"confidence"`
+	TrendDirection      string   `json:"trend_direction"`
+}
+
+type aiRecommendation struct {
+	Priority      string `json:"priority"`
+	Action        string `json:"action"`
+	Reason        string `json:"reason"`
+	EstimatedCost string `json:"estimated_cost"`
+}
+
+func (s *Service) fetchHistory(ctx context.Context, deviceID string) []telemetryPoint {
+	if s.telemetryRepo == nil {
+		return nil
+	}
+	points, err := s.telemetryRepo.QueryLatest(ctx, deviceID, 10)
+	if err != nil || len(points) == 0 {
+		return nil
+	}
+	history := make([]telemetryPoint, len(points))
+	for i, p := range points {
+		history[i] = telemetryPoint{
+			Temperature: p.Temperature,
+			Current:     p.Current,
+			Voltage:     p.Voltage,
+			Humidity:    p.Humidity,
+		}
+	}
+	return history
 }
 
 func (s *Service) Calculate(ctx context.Context, deviceID string, temp, current, voltage, humidity float64) (*HealthResponse, error) {
@@ -36,6 +104,7 @@ func (s *Service) Calculate(ctx context.Context, deviceID string, temp, current,
 		Current:     current,
 		Voltage:     voltage,
 		Humidity:    humidity,
+		History:     s.fetchHistory(ctx, deviceID),
 	}
 
 	body, _ := json.Marshal(req)
@@ -45,21 +114,91 @@ func (s *Service) Calculate(ctx context.Context, deviceID string, temp, current,
 	}
 	defer resp.Body.Close()
 
-	var aiResp aiResponse
+	var aiResp aiHealthResponse
 	if err := json.NewDecoder(resp.Body).Decode(&aiResp); err != nil {
 		return s.deterministicFallback(temp, current, humidity), nil
+	}
+
+	factors := make([]HealthFactor, len(aiResp.Factors))
+	for i, f := range aiResp.Factors {
+		factors[i] = HealthFactor{Name: f.Name, Impact: f.Impact, Details: f.Details}
 	}
 
 	return &HealthResponse{
 		Score:   aiResp.Score,
 		Level:   aiResp.Level,
-		Factors: aiResp.Factors,
+		Factors: factors,
 	}, nil
+}
+
+func (s *Service) Analyze(ctx context.Context, deviceID string, temp, current, voltage, humidity float64) (*AnalysisResponse, error) {
+	req := aiRequest{
+		Temperature: temp,
+		Current:     current,
+		Voltage:     voltage,
+		Humidity:    humidity,
+		History:     s.fetchHistory(ctx, deviceID),
+	}
+
+	body, _ := json.Marshal(req)
+	resp, err := http.Post(s.aiURL+"/analyze", "application/json", bytes.NewReader(body))
+	if err != nil {
+		slog.Warn("ai analyze request failed", "error", err)
+		return s.analysisFallback(temp, current, humidity), nil
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	var aiResp aiAnalysisResponse
+	if err := json.Unmarshal(respBody, &aiResp); err != nil {
+		return s.analysisFallback(temp, current, humidity), nil
+	}
+
+	return s.toAnalysisResponse(&aiResp), nil
+}
+
+func (s *Service) toAnalysisResponse(ai *aiAnalysisResponse) *AnalysisResponse {
+	resp := &AnalysisResponse{
+		HealthScore: ai.HealthScore,
+		HealthLevel: ai.HealthLevel,
+	}
+
+	for _, f := range ai.HealthFactors {
+		resp.HealthFactors = append(resp.HealthFactors, HealthFactor{
+			Name: f.Name, Impact: f.Impact, Details: f.Details,
+		})
+	}
+	for _, a := range ai.Anomalies {
+		resp.Anomalies = append(resp.Anomalies, AnomalyResult{
+			Metric: a.Metric, Severity: a.Severity,
+			Description: a.Description, Value: a.Value, Expected: a.Expected,
+		})
+	}
+	if ai.FailurePrediction != nil {
+		resp.FailurePrediction = &FailurePredictionResult{
+			TimeToWarningHours:  ai.FailurePrediction.TimeToWarningHours,
+			TimeToCriticalHours: ai.FailurePrediction.TimeToCriticalHours,
+			Confidence:          ai.FailurePrediction.Confidence,
+			TrendDirection:      ai.FailurePrediction.TrendDirection,
+		}
+	}
+	for _, r := range ai.Recommendations {
+		resp.Recommendations = append(resp.Recommendations, RecommendationResult{
+			Priority: r.Priority, Action: r.Action,
+			Reason: r.Reason, EstimatedCost: r.EstimatedCost,
+		})
+	}
+	if resp.Anomalies == nil {
+		resp.Anomalies = []AnomalyResult{}
+	}
+	if resp.Recommendations == nil {
+		resp.Recommendations = []RecommendationResult{}
+	}
+	return resp
 }
 
 func (s *Service) deterministicFallback(temp, current, humidity float64) *HealthResponse {
 	score := 100.0
-
 	if temp > 75 {
 		penalty := (temp - 75) * 1.5
 		if penalty > 40 {
@@ -79,11 +218,9 @@ func (s *Service) deterministicFallback(temp, current, humidity float64) *Health
 		humidityPenalty = 10
 	}
 	score -= humidityPenalty
-
 	if score < 0 {
 		score = 0
 	}
-
 	var level string
 	switch {
 	case score > 80:
@@ -93,24 +230,31 @@ func (s *Service) deterministicFallback(temp, current, humidity float64) *Health
 	default:
 		level = "critical"
 	}
-
-	tempImpact := 0.0
-	if temp > 75 {
-		tempImpact = -(temp - 75) * 1.5
-	}
-	currentImpact := 0.0
-	if current > 120 {
-		currentImpact = -(current - 120) * 0.3
-	}
-
 	return &HealthResponse{
 		Score: score,
 		Level: level,
 		Factors: []HealthFactor{
-			{Name: fmt.Sprintf("%.0f", time.Now().Sub(time.Now())), Impact: tempImpact},
-			{Name: "temperature", Impact: tempImpact},
-			{Name: "current", Impact: currentImpact},
+			{Name: "temperature", Impact: -(max(0, temp-75) * 1.5)},
+			{Name: "current", Impact: -(max(0, current-120) * 0.3)},
 			{Name: "humidity", Impact: -(humidity * 0.2)},
 		},
 	}
+}
+
+func (s *Service) analysisFallback(temp, current, humidity float64) *AnalysisResponse {
+	hr := s.deterministicFallback(temp, current, humidity)
+	return &AnalysisResponse{
+		HealthScore:     hr.Score,
+		HealthLevel:     hr.Level,
+		HealthFactors:   hr.Factors,
+		Anomalies:       []AnomalyResult{},
+		Recommendations: []RecommendationResult{},
+	}
+}
+
+func max(a, b float64) float64 {
+	if a > b {
+		return a
+	}
+	return b
 }

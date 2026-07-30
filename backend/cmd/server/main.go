@@ -64,7 +64,7 @@ func main() {
 	// Services
 	assetSvc := asset.NewService(assetRepo)
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
-	healthSvc := health.NewService(cfg.AI.URL)
+	healthSvc := health.NewService(cfg.AI.URL, telemetryRepo)
 	alertSvc := alert.NewService(alertRepo)
 
 	// WebSocket hub

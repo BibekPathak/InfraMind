@@ -93,6 +93,32 @@ func (r *Repository) GetLatest(ctx context.Context, deviceID string) (*Telemetry
 	return t, nil
 }
 
+func (r *Repository) QueryLatest(ctx context.Context, deviceID string, n int) ([]Telemetry, error) {
+	if n <= 0 || n > 100 {
+		n = 10
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT time, device_id, temperature, current_amps, voltage, humidity
+		 FROM telemetry
+		 WHERE device_id = $1
+		 ORDER BY time DESC
+		 LIMIT $2`, deviceID, n)
+	if err != nil {
+		return nil, fmt.Errorf("query latest telemetry: %w", err)
+	}
+	defer rows.Close()
+
+	results := make([]Telemetry, 0, n)
+	for rows.Next() {
+		var t Telemetry
+		if err := rows.Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity); err != nil {
+			return nil, fmt.Errorf("scan telemetry: %w", err)
+		}
+		results = append(results, t)
+	}
+	return results, nil
+}
+
 type AggregatedPoint struct {
 	Bucket      time.Time `json:"bucket"`
 	AvgTemp     *float64  `json:"avgTemp"`
