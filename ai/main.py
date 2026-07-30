@@ -18,6 +18,7 @@ from engines.base import (
     AnalysisResult,
 )
 from engines.health_score import HealthScoreEngine
+from engines.anomaly import AnomalyEngine
 
 
 class HealthRequest(BaseModel):
@@ -143,5 +144,9 @@ async def analyze(req: HealthRequest):
     result.health_score = r.health_score
     result.health_level = r.health_level
     result.health_factors = r.health_factors
+
+    anomaly_engine = AnomalyEngine()
+    ar = anomaly_engine.analyze(telemetry)
+    result.anomalies = ar.anomalies
 
     return _to_analysis_response(result)
