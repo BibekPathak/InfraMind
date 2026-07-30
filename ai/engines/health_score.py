@@ -1,49 +1,46 @@
-"""Deterministic health score calculation engine.
-
-Computes a 0-100 health score based on weighted telemetry factors.
-No ML dependencies — transparent and explainable.
-"""
-
-from dataclasses import dataclass
-from typing import List, Tuple
+from engines.base import BaseEngine, TelemetryInput, AnalysisResult, HealthFactor
 
 
-@dataclass
-class HealthFactor:
-    name: str
-    impact: float
+class HealthScoreEngine(BaseEngine):
+    name = "health_score"
 
+    def analyze(self, telemetry: TelemetryInput) -> AnalysisResult:
+        t = telemetry.temperature
+        c = telemetry.current
+        v = telemetry.voltage
+        h = telemetry.humidity
 
-def calculate_health_score(
-    temperature: float,
-    current: float,
-    voltage: float,
-    humidity: float,
-) -> Tuple[float, str, List[HealthFactor]]:
-    score = 100.0
-    factors: List[HealthFactor] = []
+        result = AnalysisResult()
+        score = 100.0
+        factors = []
 
-    temp_penalty = max(0, (temperature - 75) * 1.5)
-    temp_penalty = min(temp_penalty, 40)
-    factors.append(HealthFactor(name="temperature", impact=-round(temp_penalty, 1)))
-    score -= temp_penalty
+        temp_penalty = max(0, (t - 75) * 1.5)
+        temp_penalty = min(temp_penalty, 40)
+        factors.append(HealthFactor(name="temperature", impact=-round(temp_penalty, 1),
+                                     details=f"{t}°C exceeds 75°C threshold"))
+        score -= temp_penalty
 
-    current_penalty = max(0, (current - 120) * 0.3)
-    current_penalty = min(current_penalty, 30)
-    factors.append(HealthFactor(name="current", impact=-round(current_penalty, 1)))
-    score -= current_penalty
+        current_penalty = max(0, (c - 120) * 0.3)
+        current_penalty = min(current_penalty, 30)
+        factors.append(HealthFactor(name="current", impact=-round(current_penalty, 1),
+                                     details=f"{c}A exceeds 120A threshold"))
+        score -= current_penalty
 
-    humidity_penalty = min(humidity * 0.2, 10)
-    factors.append(HealthFactor(name="humidity", impact=-round(humidity_penalty, 1)))
-    score -= humidity_penalty
+        humidity_penalty = min(h * 0.2, 10)
+        factors.append(HealthFactor(name="humidity", impact=-round(humidity_penalty, 1),
+                                     details=f"{h}% humidity impact"))
+        score -= humidity_penalty
 
-    score = max(0, min(100, score))
+        score = max(0, min(100, score))
 
-    if score > 80:
-        level = "healthy"
-    elif score > 50:
-        level = "warning"
-    else:
-        level = "critical"
+        if score > 80:
+            level = "healthy"
+        elif score > 50:
+            level = "warning"
+        else:
+            level = "critical"
 
-    return score, level, factors
+        result.health_score = score
+        result.health_level = level
+        result.health_factors = factors
+        return result
