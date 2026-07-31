@@ -2,14 +2,20 @@ package config
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/v2"
 )
 
+type DeviceSpec struct {
+	ID   string
+	Type string
+}
+
 type Config struct {
 	MQTTURL    string
-	DeviceID   string
+	Devices    []DeviceSpec
 	IntervalMs int
 
 	MQTTUsername string
@@ -28,7 +34,6 @@ func Load() (*Config, error) {
 
 	cfg := &Config{
 		MQTTURL:      k.String("mqtt__url"),
-		DeviceID:     k.String("device__id"),
 		IntervalMs:   k.Int("interval__ms"),
 		MQTTUsername: k.String("mqtt__username"),
 		MQTTPassword: k.String("mqtt__password"),
@@ -38,9 +43,6 @@ func Load() (*Config, error) {
 	if cfg.MQTTURL == "" {
 		cfg.MQTTURL = "mqtt://localhost:1883"
 	}
-	if cfg.DeviceID == "" {
-		cfg.DeviceID = "tx-001"
-	}
 	if cfg.IntervalMs <= 0 {
 		cfg.IntervalMs = 2000
 	}
@@ -48,5 +50,33 @@ func Load() (*Config, error) {
 		cfg.BackendURL = "http://localhost:8080"
 	}
 
+	cfg.Devices = parseDevices(k.String("devices"))
+
 	return cfg, nil
+}
+
+func parseDevices(raw string) []DeviceSpec {
+	if raw == "" {
+		return []DeviceSpec{{ID: "tx-001", Type: "transformer"}}
+	}
+
+	parts := strings.Split(raw, ",")
+	specs := make([]DeviceSpec, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		spec := DeviceSpec{ID: p, Type: "transformer"}
+		if strings.Contains(p, ":") {
+			seg := strings.SplitN(p, ":", 2)
+			spec.ID = strings.TrimSpace(seg[0])
+			spec.Type = strings.TrimSpace(seg[1])
+		}
+		specs = append(specs, spec)
+	}
+	if len(specs) == 0 {
+		specs = []DeviceSpec{{ID: "tx-001", Type: "transformer"}}
+	}
+	return specs
 }

@@ -13,13 +13,17 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/inframind/simulator/config"
-	"github.com/inframind/simulator/device"
 	"github.com/inframind/simulator/scenarios"
 	"github.com/inframind/simulator/telemetry"
 )
 
 type deviceConfig struct {
 	Config map[string]any `json:"config"`
+}
+
+type simDevice struct {
+	spec   config.DeviceSpec
+	gen    *telemetry.Generator
 }
 
 func main() {
@@ -33,24 +37,12 @@ func main() {
 		Level: slog.LevelInfo,
 	})))
 
-	t := device.NewTransformer(cfg.DeviceID)
-	slog.Info("simulator starting", "deviceId", t.DeviceID, "intervalMs", cfg.IntervalMs)
-
-	fetchedCfg := fetchDeviceConfig(cfg.BackendURL, cfg.DeviceID)
-	if fetchedCfg != nil {
-		slog.Info("fetched device config from backend", "config", fetchedCfg)
-	}
-
-	gen := telemetry.NewGenerator(t.DeviceID)
-	gen.AddScenario("healthy", scenarios.Healthy(t.DeviceID))
-	gen.AddScenario("overloaded", scenarios.Overloaded(t.DeviceID))
-	gen.AddScenario("cooling_failure", scenarios.CoolingFailure(t.DeviceID))
-	gen.AddScenario("sensor_failure", scenarios.SensorFailure(t.DeviceID))
-	gen.AddScenario("voltage_sag", scenarios.VoltageSag(t.DeviceID))
+	devices := buildDevices(cfg)
+	slog.Info("simulator starting", "deviceCount", len(devices), "intervalMs", cfg.IntervalMs)
 
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(cfg.MQTTURL)
-	opts.SetClientID(fmt.Sprintf("simulator-%s", t.DeviceID))
+	opts.SetClientID("simulator-multi")
 	opts.SetCleanSession(true)
 
 	if cfg.MQTTUsername != "" {
@@ -77,14 +69,6 @@ func main() {
 	slog.Info("connected to mqtt", "broker", cfg.MQTTURL)
 
 	interval := time.Duration(cfg.IntervalMs) * time.Millisecond
-	if fetchedCfg != nil {
-		if v, ok := fetchedCfg["interval_ms"]; ok {
-			if iv, ok := v.(float64); ok && iv > 0 {
-				interval = time.Duration(iv) * time.Millisecond
-				slog.Info("using config overridden interval", "intervalMs", iv)
-			}
-		}
-	}
 
 	tick := 0
 	ticker := time.NewTicker(interval)
@@ -93,36 +77,83 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	slog.Info("publishing telemetry", "topic", fmt.Sprintf("telemetry/%s/data", t.DeviceID))
-
 	for {
 		select {
 		case <-ticker.C:
-			reading := gen.Generate(tick)
-			tick++
-
-			payload, err := json.Marshal(reading)
-			if err != nil {
-				slog.Error("failed to marshal telemetry", "error", err)
-				continue
+			for _, d := range devices {
+				publishReading(client, d.gen, tick)
 			}
-
-			topic := fmt.Sprintf("telemetry/%s/data", t.DeviceID)
-			token := client.Publish(topic, 1, false, payload)
-			token.Wait()
-
-			slog.Info("telemetry published",
-				"topic", topic,
-				"scenario", reading.Scenario,
-				"temp", reading.Temperature,
-				"current", reading.Current,
-			)
+			tick++
 
 		case <-sigChan:
 			slog.Info("shutting down simulator")
 			return
 		}
 	}
+}
+
+func buildDevices(cfg *config.Config) []simDevice {
+	devices := make([]simDevice, 0, len(cfg.Devices))
+	for _, spec := range cfg.Devices {
+		gen := newGenerator(spec)
+		if gen == nil {
+			slog.Warn("unsupported device type, skipping", "deviceId", spec.ID, "type", spec.Type)
+			continue
+		}
+		fetchedCfg := fetchDeviceConfig(cfg.BackendURL, spec.ID)
+		if fetchedCfg != nil {
+			slog.Info("fetched device config from backend", "deviceId", spec.ID, "config", fetchedCfg)
+		}
+		devices = append(devices, simDevice{spec: spec, gen: gen})
+		slog.Info("simulator device online", "deviceId", spec.ID, "type", spec.Type)
+	}
+	return devices
+}
+
+func newGenerator(spec config.DeviceSpec) *telemetry.Generator {
+	gen := telemetry.NewGenerator(spec.ID)
+
+	switch spec.Type {
+	case "transformer":
+		gen.AddScenario("healthy", scenarios.Healthy(spec.ID))
+		gen.AddScenario("overloaded", scenarios.Overloaded(spec.ID))
+		gen.AddScenario("cooling_failure", scenarios.CoolingFailure(spec.ID))
+		gen.AddScenario("sensor_failure", scenarios.SensorFailure(spec.ID))
+		gen.AddScenario("voltage_sag", scenarios.VoltageSag(spec.ID))
+	case "pump":
+		gen.AddScenario("healthy", scenarios.PumpHealthy(spec.ID))
+		gen.AddScenario("overloaded", scenarios.PumpOverloaded(spec.ID))
+		gen.AddScenario("cavitation", scenarios.PumpCavitation(spec.ID))
+	case "motor":
+		gen.AddScenario("healthy", scenarios.MotorHealthy(spec.ID))
+		gen.AddScenario("bearing_wear", scenarios.MotorBearingWear(spec.ID))
+		gen.AddScenario("overloaded", scenarios.MotorOverload(spec.ID))
+	default:
+		return nil
+	}
+
+	return gen
+}
+
+func publishReading(client mqtt.Client, gen *telemetry.Generator, tick int) {
+	reading := gen.Generate(tick)
+
+	payload, err := json.Marshal(reading)
+	if err != nil {
+		slog.Error("failed to marshal telemetry", "error", err, "deviceId", reading.DeviceID)
+		return
+	}
+
+	topic := fmt.Sprintf("telemetry/%s/data", reading.DeviceID)
+	token := client.Publish(topic, 1, false, payload)
+	token.Wait()
+
+	slog.Info("telemetry published",
+		"topic", topic,
+		"deviceId", reading.DeviceID,
+		"scenario", reading.Scenario,
+		"temp", reading.Temperature,
+	)
 }
 
 func fetchDeviceConfig(backendURL, deviceID string) map[string]any {

@@ -13,6 +13,12 @@ type Reading struct {
 	Voltage     float64 `json:"voltage"`
 	Humidity    float64 `json:"humidity"`
 	Scenario    string  `json:"scenario"`
+
+	FlowRate    *float64 `json:"flow_rate,omitempty"`
+	Pressure    *float64 `json:"pressure,omitempty"`
+	Vibration   *float64 `json:"vibration,omitempty"`
+	RPM         *float64 `json:"rpm,omitempty"`
+	OutputPower *float64 `json:"output_power,omitempty"`
 }
 
 type ScenarioFunc func(tick int) Reading
@@ -81,4 +87,8 @@ func MakeReading(deviceID, scenario string, temp, current, voltage, humidity flo
 		Humidity:    round(clamp(humidity, 0, 100), 1),
 		Scenario:    scenario,
 	}
+}
+
+func fptr(v float64) *float64 {
+	return &v
 }

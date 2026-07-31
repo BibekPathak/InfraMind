@@ -115,7 +115,7 @@ services:
     container_name: infra-simulator
     environment:
       INFRA_MQTT_URL: "mqtt://emqx:1883"
-      INFRA_DEVICE_ID: "tx-001"
+      INFRA_DEVICES: "tx-001:transformer,pump-001:pump,motor-001:motor"
       INFRA_INTERVAL_MS: "2000"
       INFRA_MQTT_USERNAME: "mqtt_admin"
       INFRA_MQTT_PASSWORD: "mqtt_admin_secret"
