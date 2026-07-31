@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/cors"
 	"github.com/inframind/backend/internal/alert"
 	"github.com/inframind/backend/internal/asset"
+	"github.com/inframind/backend/internal/assettype"
 	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/config"
 	"github.com/inframind/backend/internal/db"
@@ -61,9 +62,12 @@ func main() {
 	deviceRepo := device.NewRepository(pool)
 	telemetryRepo := telemetry.NewRepository(pool)
 	alertRepo := alert.NewRepository(pool)
+	assetTypeRepo := assettype.NewRepository(pool)
 
 	// Services
+	assetTypeSvc := assettype.NewService(assetTypeRepo)
 	assetSvc := asset.NewService(assetRepo)
+	assetSvc.SetTypeValidator(assetTypeSvc)
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL, telemetryRepo)
 	alertSvc := alert.NewService(alertRepo)
@@ -131,6 +135,7 @@ func main() {
 		})
 
 		asset.NewHandler(assetSvc, bus).Register(r)
+		assettype.NewHandler(assetTypeSvc, bus).Register(r)
 		device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
 		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
 		alert.NewHandler(alertSvc, bus).Register(r)

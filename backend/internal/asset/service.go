@@ -7,12 +7,21 @@ import (
 	"github.com/inframind/backend/pkg/uuidv7"
 )
 
+type TypeValidator interface {
+	Exists(ctx context.Context, typeName string) (bool, error)
+}
+
 type Service struct {
-	repo *Repository
+	repo    *Repository
+	typeSvc TypeValidator
 }
 
 func NewService(repo *Repository) *Service {
 	return &Service{repo: repo}
+}
+
+func (s *Service) SetTypeValidator(tv TypeValidator) {
+	s.typeSvc = tv
 }
 
 func (s *Service) Create(ctx context.Context, req CreateAssetRequest) (*Asset, error) {
@@ -21,6 +30,16 @@ func (s *Service) Create(ctx context.Context, req CreateAssetRequest) (*Asset, e
 	}
 	if req.Type == "" {
 		req.Type = "transformer"
+	}
+
+	if s.typeSvc != nil {
+		exists, err := s.typeSvc.Exists(ctx, req.Type)
+		if err != nil {
+			return nil, fmt.Errorf("validate asset type: %w", err)
+		}
+		if !exists {
+			return nil, fmt.Errorf("unknown asset type: %s", req.Type)
+		}
 	}
 
 	a := &Asset{
