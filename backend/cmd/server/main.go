@@ -24,6 +24,7 @@ import (
 	"github.com/inframind/backend/internal/mqtt"
 	"github.com/inframind/backend/internal/telemetry"
 	"github.com/inframind/backend/internal/twin"
+	"github.com/inframind/backend/internal/workorder"
 )
 
 func main() {
@@ -66,6 +67,8 @@ func main() {
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL, telemetryRepo)
 	alertSvc := alert.NewService(alertRepo)
+	workOrderRepo := workorder.NewRepository(pool)
+	workOrderSvc := workorder.NewService(workOrderRepo)
 
 	// WebSocket hub
 	wsHub := telemetry.NewWSHub()
@@ -134,6 +137,7 @@ func main() {
 		health.NewHandler(healthSvc).Register(r)
 		twin.NewHandler(twinSvc, bus).Register(r)
 		auth.NewHandler(authSvc).RegisterRoutes(r)
+		workorder.NewHandler(workOrderSvc, bus).Register(r)
 	})
 
 	// Register event subscriptions
@@ -141,6 +145,7 @@ func main() {
 	device.RegisterEvents(bus)
 	telemetry.RegisterEvents(bus)
 	alert.RegisterEvents(bus, alertSvc)
+	workorder.RegisterEvents(bus, workOrderSvc)
 
 	// Server
 	srv := &http.Server{
