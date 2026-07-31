@@ -512,6 +512,128 @@ paths:
               schema:
                 $ref: "#/components/schemas/DigitalTwin"
 
+  /work-orders:
+    get:
+      summary: List work orders with optional filters
+      parameters:
+        - name: asset_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [open, assigned, in_progress, completed, cancelled] }
+        - name: priority
+          in: query
+          schema: { type: string, enum: [low, medium, high, critical] }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: Work order list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/WorkOrder"
+    post:
+      summary: Create a work order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWorkOrderRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  /work-orders/{id}:
+    get:
+      summary: Get work order by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Work order detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  /work-orders/{id}/assign:
+    patch:
+      summary: Assign a work order to an engineer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AssignWorkOrderRequest"
+      responses:
+        "200":
+          description: Assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  /work-orders/{id}/status:
+    patch:
+      summary: Update work order status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkOrderStatusUpdate"
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkOrder"
+
+  /work-orders/{id}/timeline:
+    get:
+      summary: Get work order incident timeline
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Timeline events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineEvent"
+
 components:
   schemas:
     Asset:
@@ -714,3 +836,53 @@ components:
         type: { type: string, enum: [inspection, repair, replacement, firmware_update] }
         summary: { type: string }
         details: { type: string }
+
+    WorkOrder:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        assetId: { type: string, format: uuid }
+        alertId: { type: string, format: uuid, nullable: true }
+        type: { type: string, enum: [inspection, repair, replacement, firmware_update, diagnostic] }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        status: { type: string, enum: [open, assigned, in_progress, completed, cancelled] }
+        assignedTo: { type: string, nullable: true }
+        estimatedCost: { type: number, nullable: true }
+        description: { type: string }
+        timeline:
+          type: array
+          items:
+            $ref: "#/components/schemas/TimelineEvent"
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    CreateWorkOrderRequest:
+      type: object
+      required: [assetId]
+      properties:
+        assetId: { type: string, format: uuid }
+        alertId: { type: string, format: uuid }
+        type: { type: string, enum: [inspection, repair, replacement, firmware_update, diagnostic] }
+        priority: { type: string, enum: [low, medium, high, critical] }
+        description: { type: string }
+        estimatedCost: { type: number }
+
+    AssignWorkOrderRequest:
+      type: object
+      required: [assignedTo]
+      properties:
+        assignedTo: { type: string }
+
+    WorkOrderStatusUpdate:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [open, assigned, in_progress, completed, cancelled] }
+
+    TimelineEvent:
+      type: object
+      properties:
+        timestamp: { type: string, format: date-time }
+        action: { type: string }
+        actor: { type: string }
+        note: { type: string }
