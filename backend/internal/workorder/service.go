@@ -54,6 +54,10 @@ func (s *Service) GetByID(ctx context.Context, id string) (*WorkOrder, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
+func (s *Service) HasOpenForAsset(ctx context.Context, assetID string) (bool, error) {
+	return s.repo.HasOpenForAsset(ctx, assetID)
+}
+
 func (s *Service) List(ctx context.Context, f Filter) ([]WorkOrder, error) {
 	return s.repo.List(ctx, f)
 }

@@ -145,7 +145,7 @@ func main() {
 	device.RegisterEvents(bus)
 	telemetry.RegisterEvents(bus)
 	alert.RegisterEvents(bus, alertSvc)
-	workorder.RegisterEvents(bus, workOrderSvc)
+	workorder.RegisterEvents(bus, workOrderSvc, deviceSvc)
 
 	// Server
 	srv := &http.Server{
