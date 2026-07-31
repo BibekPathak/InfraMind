@@ -1,18 +1,24 @@
-"""Advanced health score engine with weighted scoring and trend detection."""
+"""Advanced health score engine with weighted scoring and trend detection.
+
+Asset-type aware: thresholds and weights are loaded from the asset type
+registry, falling back to transformer defaults for unknown types.
+"""
 
 from engines.base import BaseEngine, TelemetryInput, AnalysisResult, HealthFactor
+from engines.asset_types import get_config
 
 
 class HealthScoreEngine(BaseEngine):
     name = "health_score"
 
-    def __init__(self, temp_threshold: float = 75, current_threshold: float = 120,
-                 voltage_min: float = 10000, humidity_max: float = 80,
-                 trend_rate_threshold: float = 2.0):
-        self.temp_threshold = temp_threshold
-        self.current_threshold = current_threshold
-        self.voltage_min = voltage_min
-        self.humidity_max = humidity_max
+    def __init__(self, asset_type: str = "transformer", trend_rate_threshold: float = 2.0):
+        cfg = get_config(asset_type)
+        self.asset_type = cfg.type
+        self.temp_threshold = cfg.temp_warning
+        self.current_threshold = cfg.current_warning
+        self.voltage_min = cfg.voltage_min
+        self.humidity_max = cfg.humidity_max
+        self.weights = cfg.weights
         self.trend_rate_threshold = trend_rate_threshold
 
     def analyze(self, telemetry: TelemetryInput) -> AnalysisResult:
@@ -26,9 +32,9 @@ class HealthScoreEngine(BaseEngine):
         score = 100.0
         factors = []
 
+        wt = self.weights.get("temperature", 0.4)
         temp_penalty = max(0, (t - self.temp_threshold) * 1.5)
         temp_penalty = min(temp_penalty, 40)
-        wt = 0.4
         factors.append(HealthFactor(
             name="temperature",
             impact=-round(temp_penalty * wt, 1),
@@ -36,9 +42,9 @@ class HealthScoreEngine(BaseEngine):
         ))
         score -= temp_penalty * wt
 
+        wc = self.weights.get("current", 0.3)
         current_penalty = max(0, (c - self.current_threshold) * 0.3)
         current_penalty = min(current_penalty, 30)
-        wc = 0.3
         factors.append(HealthFactor(
             name="current",
             impact=-round(current_penalty * wc, 1),
@@ -46,10 +52,10 @@ class HealthScoreEngine(BaseEngine):
         ))
         score -= current_penalty * wc
 
+        wv = self.weights.get("voltage", 0.15)
         voltage_penalty = 0
-        if v > 0 and v < self.voltage_min:
+        if v > 0 and self.voltage_min > 0 and v < self.voltage_min:
             voltage_penalty = min((self.voltage_min - v) * 0.05, 15)
-        wv = 0.15
         factors.append(HealthFactor(
             name="voltage",
             impact=-round(voltage_penalty * wv, 1),
@@ -57,10 +63,10 @@ class HealthScoreEngine(BaseEngine):
         ))
         score -= voltage_penalty * wv
 
+        wh = self.weights.get("humidity", 0.15)
         humidity_penalty = 0
         if h > self.humidity_max:
             humidity_penalty = min((h - self.humidity_max) * 0.5, 10)
-        wh = 0.15
         factors.append(HealthFactor(
             name="humidity",
             impact=-round(humidity_penalty * wh, 1),

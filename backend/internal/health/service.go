@@ -14,17 +14,38 @@ import (
 type Service struct {
 	aiURL         string
 	telemetryRepo *telemetry.Repository
+	assetTypeResolver AssetTypeResolver
+}
+
+type AssetTypeResolver interface {
+	ResolveAssetType(ctx context.Context, deviceID string) (string, error)
 }
 
 func NewService(aiURL string, telemetryRepo *telemetry.Repository) *Service {
 	return &Service{aiURL: aiURL, telemetryRepo: telemetryRepo}
 }
 
+func (s *Service) SetAssetTypeResolver(r AssetTypeResolver) {
+	s.assetTypeResolver = r
+}
+
+func (s *Service) resolveAssetType(ctx context.Context, deviceID string) string {
+	if s.assetTypeResolver == nil {
+		return "transformer"
+	}
+	assetType, err := s.assetTypeResolver.ResolveAssetType(ctx, deviceID)
+	if err != nil || assetType == "" {
+		return "transformer"
+	}
+	return assetType
+}
+
 type aiRequest struct {
-	Temperature float64        `json:"temperature"`
-	Current     float64        `json:"current"`
-	Voltage     float64        `json:"voltage"`
-	Humidity    float64        `json:"humidity"`
+	Temperature float64          `json:"temperature"`
+	Current     float64          `json:"current"`
+	Voltage     float64          `json:"voltage"`
+	Humidity    float64          `json:"humidity"`
+	AssetType   string           `json:"asset_type,omitempty"`
 	History     []telemetryPoint `json:"history,omitempty"`
 }
 
@@ -104,6 +125,7 @@ func (s *Service) Calculate(ctx context.Context, deviceID string, temp, current,
 		Current:     current,
 		Voltage:     voltage,
 		Humidity:    humidity,
+		AssetType:   s.resolveAssetType(ctx, deviceID),
 		History:     s.fetchHistory(ctx, deviceID),
 	}
 
@@ -137,6 +159,7 @@ func (s *Service) Analyze(ctx context.Context, deviceID string, temp, current, v
 		Current:     current,
 		Voltage:     voltage,
 		Humidity:    humidity,
+		AssetType:   s.resolveAssetType(ctx, deviceID),
 		History:     s.fetchHistory(ctx, deviceID),
 	}
 

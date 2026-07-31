@@ -28,6 +28,7 @@ class HealthRequest(BaseModel):
     current: float = 0
     voltage: float = 0
     humidity: float = 0
+    asset_type: str = "transformer"
     history: List[dict] = []
 
 
@@ -131,7 +132,7 @@ async def health():
 
 @app.post("/health-score", response_model=HealthResponse)
 async def health_score(req: HealthRequest):
-    engine = HealthScoreEngine()
+    engine = HealthScoreEngine(asset_type=req.asset_type)
     result = engine.analyze(_to_telemetry(req))
     return _to_health_response(result)
 
@@ -141,7 +142,7 @@ async def analyze(req: HealthRequest):
     telemetry = _to_telemetry(req)
     result = AnalysisResult()
 
-    engine = HealthScoreEngine()
+    engine = HealthScoreEngine(asset_type=req.asset_type)
     r = engine.analyze(telemetry)
     result.health_score = r.health_score
     result.health_level = r.health_level

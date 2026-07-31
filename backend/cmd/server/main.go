@@ -70,6 +70,7 @@ func main() {
 	assetSvc.SetTypeValidator(assetTypeSvc)
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL, telemetryRepo)
+	healthSvc.SetAssetTypeResolver(health.NewDeviceAssetResolver(deviceSvc, assetSvc))
 	alertSvc := alert.NewService(alertRepo)
 	workOrderRepo := workorder.NewRepository(pool)
 	workOrderSvc := workorder.NewService(workOrderRepo)
