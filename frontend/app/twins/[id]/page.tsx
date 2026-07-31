@@ -124,10 +124,15 @@ export default function TwinDetailPage() {
                 'Current': twin.liveState.current,
                 'Voltage': twin.liveState.voltage,
                 'Humidity': twin.liveState.humidity,
+                'Flow Rate': twin.liveState.flowRate,
+                'Pressure': twin.liveState.pressure,
+                'RPM': twin.liveState.rpm,
+                'Vibration': twin.liveState.vibration,
+                'Output Power': twin.liveState.outputPower,
                 'Device Status': twin.liveState.deviceStatus,
                 'Firmware': twin.liveState.firmwareVersion,
                 'Devices': twin.liveState.deviceCount,
-              }).map(([label, val]) => (
+              }).filter(([, val]) => val !== undefined && val !== null).map(([label, val]) => (
                 <div key={label}>
                   <div style={{ color: '#64748b', fontSize: 11 }}>{label}</div>
                   <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{val ?? '--'}</div>

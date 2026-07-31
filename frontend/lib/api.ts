@@ -79,3 +79,23 @@ export async function getHealth(deviceId: string, telemetry: TelemetryPoint): Pr
   })
   return fetchJSON<HealthScore>(`${API_URL}/api/v1/health/${deviceId}?${params}`)
 }
+
+export interface AssetTypeMetric {
+  name: string
+  unit: string
+}
+
+export interface AssetType {
+  type: string
+  displayName: string
+  metrics: AssetTypeMetric[]
+  thresholds: Record<string, Record<string, number>>
+  healthWeights: Record<string, number>
+  active: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export async function getAssetTypes(): Promise<AssetType[]> {
+  return fetchJSON<AssetType[]>(`${API_URL}/api/v1/asset-types`)
+}

@@ -14,6 +14,7 @@ export default function Nav() {
         <Link href="/twins" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>Twins</Link>
         <Link href="/ai" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>AI</Link>
         <Link href="/operations" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>Operations</Link>
+        <Link href="/asset-types" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>Asset Types</Link>
       </div>
     </nav>
   )

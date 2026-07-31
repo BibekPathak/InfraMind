@@ -67,6 +67,21 @@ func (s *Service) Sync(ctx context.Context, assetID string) (*DigitalTwin, error
 			liveState["current"] = t.Current
 			liveState["voltage"] = t.Voltage
 			liveState["humidity"] = t.Humidity
+			if t.FlowRate != nil {
+				liveState["flowRate"] = *t.FlowRate
+			}
+			if t.Pressure != nil {
+				liveState["pressure"] = *t.Pressure
+			}
+			if t.Vibration != nil {
+				liveState["vibration"] = *t.Vibration
+			}
+			if t.RPM != nil {
+				liveState["rpm"] = *t.RPM
+			}
+			if t.OutputPower != nil {
+				liveState["outputPower"] = *t.OutputPower
+			}
 		}
 
 		healthResp, err := s.healthSvc.Calculate(ctx, d.ID,

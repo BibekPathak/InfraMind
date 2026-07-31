@@ -112,6 +112,11 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 		Current:     p.Current,
 		Voltage:     p.Voltage,
 		Humidity:    p.Humidity,
+		FlowRate:    p.FlowRate,
+		Pressure:    p.Pressure,
+		Vibration:   p.Vibration,
+		RPM:         p.RPM,
+		OutputPower: p.OutputPower,
 	}
 
 	ing.mu.Lock()

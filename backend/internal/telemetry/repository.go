@@ -19,9 +19,10 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 
 func (r *Repository) Insert(ctx context.Context, t *Telemetry) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO telemetry (time, device_id, temperature, current_amps, voltage, humidity)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
+		`INSERT INTO telemetry (time, device_id, temperature, current_amps, voltage, humidity, flow_rate, pressure, vibration, rpm, output_power)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		t.Time, t.DeviceID, t.Temperature, t.Current, t.Voltage, t.Humidity,
+		t.FlowRate, t.Pressure, t.Vibration, t.RPM, t.OutputPower,
 	)
 	if err != nil {
 		return fmt.Errorf("insert telemetry: %w", err)
@@ -36,13 +37,16 @@ func (r *Repository) BatchInsert(ctx context.Context, points []Telemetry) error 
 
 	rows := make([][]any, len(points))
 	for i, p := range points {
-		rows[i] = []any{p.Time, p.DeviceID, p.Temperature, p.Current, p.Voltage, p.Humidity}
+		rows[i] = []any{
+			p.Time, p.DeviceID, p.Temperature, p.Current, p.Voltage, p.Humidity,
+			p.FlowRate, p.Pressure, p.Vibration, p.RPM, p.OutputPower,
+		}
 	}
 
 	_, err := r.pool.CopyFrom(
 		ctx,
 		pgx.Identifier{"telemetry"},
-		[]string{"time", "device_id", "temperature", "current_amps", "voltage", "humidity"},
+		[]string{"time", "device_id", "temperature", "current_amps", "voltage", "humidity", "flow_rate", "pressure", "vibration", "rpm", "output_power"},
 		pgx.CopyFromRows(rows),
 	)
 	if err != nil {
@@ -57,7 +61,7 @@ func (r *Repository) Query(ctx context.Context, deviceID string, from, to time.T
 	}
 
 	rows, err := r.pool.Query(ctx,
-		`SELECT time, device_id, temperature, current_amps, voltage, humidity
+		`SELECT time, device_id, temperature, current_amps, voltage, humidity, flow_rate, pressure, vibration, rpm, output_power
 		 FROM telemetry
 		 WHERE device_id = $1 AND time >= $2 AND time <= $3
 		 ORDER BY time DESC
@@ -70,7 +74,7 @@ func (r *Repository) Query(ctx context.Context, deviceID string, from, to time.T
 	var results []Telemetry
 	for rows.Next() {
 		var t Telemetry
-		if err := rows.Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity); err != nil {
+		if err := rows.Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity, &t.FlowRate, &t.Pressure, &t.Vibration, &t.RPM, &t.OutputPower); err != nil {
 			return nil, fmt.Errorf("scan telemetry: %w", err)
 		}
 		results = append(results, t)
@@ -81,12 +85,12 @@ func (r *Repository) Query(ctx context.Context, deviceID string, from, to time.T
 func (r *Repository) GetLatest(ctx context.Context, deviceID string) (*Telemetry, error) {
 	t := &Telemetry{}
 	err := r.pool.QueryRow(ctx,
-		`SELECT time, device_id, temperature, current_amps, voltage, humidity
+		`SELECT time, device_id, temperature, current_amps, voltage, humidity, flow_rate, pressure, vibration, rpm, output_power
 		 FROM telemetry
 		 WHERE device_id = $1
 		 ORDER BY time DESC
 		 LIMIT 1`, deviceID,
-	).Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity)
+	).Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity, &t.FlowRate, &t.Pressure, &t.Vibration, &t.RPM, &t.OutputPower)
 	if err != nil {
 		return nil, fmt.Errorf("get latest telemetry %s: %w", deviceID, err)
 	}
@@ -98,7 +102,7 @@ func (r *Repository) QueryLatest(ctx context.Context, deviceID string, n int) ([
 		n = 10
 	}
 	rows, err := r.pool.Query(ctx,
-		`SELECT time, device_id, temperature, current_amps, voltage, humidity
+		`SELECT time, device_id, temperature, current_amps, voltage, humidity, flow_rate, pressure, vibration, rpm, output_power
 		 FROM telemetry
 		 WHERE device_id = $1
 		 ORDER BY time DESC
@@ -111,7 +115,7 @@ func (r *Repository) QueryLatest(ctx context.Context, deviceID string, n int) ([
 	results := make([]Telemetry, 0, n)
 	for rows.Next() {
 		var t Telemetry
-		if err := rows.Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity); err != nil {
+		if err := rows.Scan(&t.Time, &t.DeviceID, &t.Temperature, &t.Current, &t.Voltage, &t.Humidity, &t.FlowRate, &t.Pressure, &t.Vibration, &t.RPM, &t.OutputPower); err != nil {
 			return nil, fmt.Errorf("scan telemetry: %w", err)
 		}
 		results = append(results, t)

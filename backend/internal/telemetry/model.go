@@ -9,6 +9,12 @@ type Telemetry struct {
 	Current     float64   `json:"current"`
 	Voltage     float64   `json:"voltage"`
 	Humidity    float64   `json:"humidity"`
+
+	FlowRate    *float64 `json:"flowRate,omitempty"`
+	Pressure    *float64 `json:"pressure,omitempty"`
+	Vibration   *float64 `json:"vibration,omitempty"`
+	RPM         *float64 `json:"rpm,omitempty"`
+	OutputPower *float64 `json:"outputPower,omitempty"`
 }
 
 type TelemetryPayload struct {
@@ -19,4 +25,10 @@ type TelemetryPayload struct {
 	Voltage     float64 `json:"voltage"`
 	Humidity    float64 `json:"humidity"`
 	Scenario    string  `json:"scenario,omitempty"`
+
+	FlowRate    *float64 `json:"flow_rate,omitempty"`
+	Pressure    *float64 `json:"pressure,omitempty"`
+	Vibration   *float64 `json:"vibration,omitempty"`
+	RPM         *float64 `json:"rpm,omitempty"`
+	OutputPower *float64 `json:"output_power,omitempty"`
 }
