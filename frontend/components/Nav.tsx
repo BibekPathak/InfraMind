@@ -12,6 +12,7 @@ export default function Nav() {
         <Link href="/telemetry" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>Telemetry</Link>
         <Link href="/alerts" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>Alerts</Link>
         <Link href="/twins" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>Twins</Link>
+        <Link href="/ai" style={{ color: '#94a3b8', textDecoration: 'none', fontSize: 14 }}>AI</Link>
       </div>
     </nav>
   )
