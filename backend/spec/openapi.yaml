@@ -324,6 +324,34 @@ paths:
               schema:
                 $ref: "#/components/schemas/HealthScore"
 
+  /health/{deviceId}/analysis:
+    get:
+      summary: Full AI analysis for a device (health, anomalies, predictions, recommendations)
+      parameters:
+        - name: deviceId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - name: temperature
+          in: query
+          schema: { type: number }
+        - name: current
+          in: query
+          schema: { type: number }
+        - name: voltage
+          in: query
+          schema: { type: number }
+        - name: humidity
+          in: query
+          schema: { type: number }
+      responses:
+        "200":
+          description: Full AI analysis
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalysisResponse"
+
   /alerts:
     get:
       summary: List alerts with optional filters
@@ -556,6 +584,55 @@ components:
             properties:
               name: { type: string }
               impact: { type: number }
+
+    AnalysisResponse:
+      type: object
+      properties:
+        healthScore: { type: number }
+        healthLevel: { type: string, enum: [healthy, warning, critical] }
+        healthFactors:
+          type: array
+          items:
+            type: object
+            properties:
+              name: { type: string }
+              impact: { type: number }
+              details: { type: string }
+        anomalies:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnomalyResult"
+        failurePrediction:
+          $ref: "#/components/schemas/FailurePredictionResult"
+        recommendations:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecommendationResult"
+
+    AnomalyResult:
+      type: object
+      properties:
+        metric: { type: string }
+        severity: { type: string, enum: [info, warning, critical] }
+        description: { type: string }
+        value: { type: number }
+        expected: { type: number }
+
+    FailurePredictionResult:
+      type: object
+      properties:
+        timeToWarningHours: { type: number, nullable: true }
+        timeToCriticalHours: { type: number, nullable: true }
+        confidence: { type: number }
+        trendDirection: { type: string, enum: [rising, falling, stable] }
+
+    RecommendationResult:
+      type: object
+      properties:
+        priority: { type: string, enum: [low, medium, high, critical] }
+        action: { type: string }
+        reason: { type: string }
+        estimatedCost: { type: string }
 
     Alert:
       type: object
