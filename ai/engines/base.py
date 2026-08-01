@@ -43,6 +43,10 @@ class Recommendation:
     action: str
     reason: str
     estimated_cost: str = "unknown"
+    # Optional executable action metadata. When set, the backend may
+    # propose an autonomous action (type: command/restart/config_change/notification).
+    action_type: Optional[str] = None
+    action_payload: Optional[dict] = None
 
 
 @dataclass

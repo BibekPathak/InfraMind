@@ -1,7 +1,9 @@
 """Maintenance recommendation engine.
 
 Rule-based: given health score, anomalies, and failure predictions,
-suggests prioritized maintenance actions.
+suggests prioritized maintenance actions. Actionable recommendations
+carry `action_type` + `action_payload` so the backend can propose
+autonomous actions for operator approval.
 """
 
 from engines.base import BaseEngine, TelemetryInput, AnalysisResult, Recommendation
@@ -34,6 +36,8 @@ class MaintenanceRecommendationEngine(BaseEngine):
                 action="Inspect cooling system",
                 reason="Temperature rising with normal load — cooling system may be failing",
                 estimated_cost="medium",
+                action_type="notification",
+                action_payload={"channel": "dashboard", "severity": "warning"},
             ))
         elif t > 80:
             recommendations.append(Recommendation(
@@ -41,6 +45,8 @@ class MaintenanceRecommendationEngine(BaseEngine):
                 action="Reduce load or increase cooling",
                 reason="Temperature above threshold — check fans, radiators, and ambient temperature",
                 estimated_cost="low",
+                action_type="config_change",
+                action_payload={"config": {"cooling_boost": True}},
             ))
 
         if c > 180:
@@ -49,6 +55,8 @@ class MaintenanceRecommendationEngine(BaseEngine):
                 action="Check load balance and power quality",
                 reason="Current draw significantly above normal — possible overload or imbalance",
                 estimated_cost="low",
+                action_type="notification",
+                action_payload={"channel": "dashboard", "severity": "warning"},
             ))
         elif c > 140 and current_trend > 1.0:
             recommendations.append(Recommendation(
@@ -64,6 +72,8 @@ class MaintenanceRecommendationEngine(BaseEngine):
                 action="Check voltage regulation equipment",
                 reason="Voltage below minimum operating range — possible tap changer or regulator issue",
                 estimated_cost="medium",
+                action_type="notification",
+                action_payload={"channel": "dashboard", "severity": "warning"},
             ))
 
         if t < 30 and c == 0:
@@ -72,6 +82,8 @@ class MaintenanceRecommendationEngine(BaseEngine):
                 action="Verify sensor operation",
                 reason="All sensor readings near zero — possible sensor failure or power loss",
                 estimated_cost="low",
+                action_type="restart",
+                action_payload={"command": "restart_sensor_reading"},
             ))
 
         if len(recommendations) == 0:

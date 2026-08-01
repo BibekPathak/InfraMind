@@ -38,10 +38,12 @@ type FailurePredictionResult struct {
 }
 
 type RecommendationResult struct {
-	Priority      string `json:"priority"`
-	Action        string `json:"action"`
-	Reason        string `json:"reason"`
-	EstimatedCost string `json:"estimatedCost"`
+	Priority      string         `json:"priority"`
+	Action        string         `json:"action"`
+	Reason        string         `json:"reason"`
+	EstimatedCost string         `json:"estimatedCost"`
+	ActionType    string         `json:"actionType,omitempty"`
+	ActionPayload map[string]any `json:"actionPayload,omitempty"`
 }
 
 type AnalysisResponse struct {

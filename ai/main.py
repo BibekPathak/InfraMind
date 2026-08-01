@@ -58,6 +58,8 @@ class RecommendationModel(BaseModel):
     action: str
     reason: str
     estimated_cost: str = "unknown"
+    action_type: str | None = None
+    action_payload: dict | None = None
 
 
 class HealthResponse(BaseModel):
@@ -121,6 +123,7 @@ def _to_analysis_response(result: AnalysisResult) -> AnalysisResponse:
         recommendations=[RecommendationModel(
             priority=r.priority, action=r.action,
             reason=r.reason, estimated_cost=r.estimated_cost,
+            action_type=r.action_type, action_payload=r.action_payload,
         ) for r in result.recommendations],
     )
 

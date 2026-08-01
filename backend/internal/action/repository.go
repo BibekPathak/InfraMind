@@ -148,3 +148,17 @@ func (r *Repository) MarkFailed(ctx context.Context, id string, result string) e
 	}
 	return nil
 }
+
+func (r *Repository) HasPendingForDeviceType(ctx context.Context, deviceID, actionType string) (bool, error) {
+	var count int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM actions
+		 WHERE device_id = $1 AND type = $2
+		   AND status IN ('proposed', 'approved')`,
+		deviceID, actionType,
+	).Scan(&count)
+	if err != nil {
+		return false, fmt.Errorf("check pending action: %w", err)
+	}
+	return count > 0, nil
+}

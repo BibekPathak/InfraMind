@@ -15,6 +15,15 @@ type Service struct {
 	aiURL         string
 	telemetryRepo *telemetry.Repository
 	assetTypeResolver AssetTypeResolver
+	eventPublisher    EventPublisher
+}
+
+type EventPublisher interface {
+	PublishRecommendation(deviceID string, recs []RecommendationResult)
+}
+
+func (s *Service) SetEventPublisher(p EventPublisher) {
+	s.eventPublisher = p
 }
 
 type AssetTypeResolver interface {
@@ -93,10 +102,12 @@ type aiPrediction struct {
 }
 
 type aiRecommendation struct {
-	Priority      string `json:"priority"`
-	Action        string `json:"action"`
-	Reason        string `json:"reason"`
-	EstimatedCost string `json:"estimated_cost"`
+	Priority      string         `json:"priority"`
+	Action        string         `json:"action"`
+	Reason        string         `json:"reason"`
+	EstimatedCost string         `json:"estimated_cost"`
+	ActionType    string         `json:"action_type"`
+	ActionPayload map[string]any `json:"action_payload"`
 }
 
 func (s *Service) fetchHistory(ctx context.Context, deviceID string) []telemetryPoint {
@@ -177,7 +188,20 @@ func (s *Service) Analyze(ctx context.Context, deviceID string, temp, current, v
 		return s.analysisFallback(temp, current, humidity), nil
 	}
 
-	return s.toAnalysisResponse(&aiResp), nil
+	analysis := s.toAnalysisResponse(&aiResp)
+	if s.eventPublisher != nil {
+		var actionable []RecommendationResult
+		for _, rec := range analysis.Recommendations {
+			if rec.ActionType != "" {
+				actionable = append(actionable, rec)
+			}
+		}
+		if len(actionable) > 0 {
+			s.eventPublisher.PublishRecommendation(deviceID, actionable)
+		}
+	}
+
+	return analysis, nil
 }
 
 func (s *Service) toAnalysisResponse(ai *aiAnalysisResponse) *AnalysisResponse {
@@ -209,6 +233,7 @@ func (s *Service) toAnalysisResponse(ai *aiAnalysisResponse) *AnalysisResponse {
 		resp.Recommendations = append(resp.Recommendations, RecommendationResult{
 			Priority: r.Priority, Action: r.Action,
 			Reason: r.Reason, EstimatedCost: r.EstimatedCost,
+			ActionType: r.ActionType, ActionPayload: r.ActionPayload,
 		})
 	}
 	if resp.Anomalies == nil {

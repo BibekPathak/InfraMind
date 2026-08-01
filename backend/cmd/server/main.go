@@ -72,6 +72,7 @@ func main() {
 	deviceSvc := device.NewService(deviceRepo, emqxClient)
 	healthSvc := health.NewService(cfg.AI.URL, telemetryRepo)
 	healthSvc.SetAssetTypeResolver(health.NewDeviceAssetResolver(deviceSvc, assetSvc))
+	healthSvc.SetEventPublisher(&recommendationPublisher{bus: bus})
 	alertSvc := alert.NewService(alertRepo)
 	workOrderRepo := workorder.NewRepository(pool)
 	workOrderSvc := workorder.NewService(workOrderRepo)
@@ -159,7 +160,7 @@ func main() {
 	telemetry.RegisterEvents(bus)
 	alert.RegisterEvents(bus, alertSvc)
 	workorder.RegisterEvents(bus, workOrderSvc, deviceSvc)
-	action.RegisterEvents(bus, actionSvc)
+	action.RegisterEvents(bus, actionSvc, deviceSvc)
 
 	// Server
 	srv := &http.Server{
@@ -191,4 +192,23 @@ func main() {
 		slog.Error("server shutdown error", "error", err)
 	}
 	slog.Info("server stopped")
+}
+
+type recommendationPublisher struct {
+	bus *eventbus.Bus
+}
+
+func (p *recommendationPublisher) PublishRecommendation(deviceID string, recs []health.RecommendationResult) {
+	items := make([]action.RecommendationItem, 0, len(recs))
+	for _, r := range recs {
+		items = append(items, action.RecommendationItem{
+			ActionType:    r.ActionType,
+			ActionPayload: r.ActionPayload,
+			Reason:        r.Reason,
+		})
+	}
+	p.bus.Publish(eventbus.NewEvent("ai.recommendation.generated", "health_service", action.RecommendationEvent{
+		DeviceID:        deviceID,
+		Recommendations: items,
+	}))
 }

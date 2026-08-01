@@ -78,3 +78,7 @@ func (s *Service) MarkExecuted(ctx context.Context, id string, result string) er
 func (s *Service) MarkFailed(ctx context.Context, id string, result string) error {
 	return s.repo.MarkFailed(ctx, id, result)
 }
+
+func (s *Service) HasPendingForDeviceType(ctx context.Context, deviceID, actionType string) (bool, error) {
+	return s.repo.HasPendingForDeviceType(ctx, deviceID, actionType)
+}
