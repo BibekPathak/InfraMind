@@ -108,7 +108,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	actionExec := action.NewExecutor(actionSvc, bus, mqttSub)
+	actionExec := action.NewExecutor(actionSvc, bus, mqttSub, action.NewPolicyEvaluator(assetSvc))
 	go actionExec.Run(ctx)
 
 	heartbeatMon := device.NewHeartbeatMonitor(pool, bus)

@@ -15,13 +15,14 @@ type Publisher interface {
 }
 
 type Executor struct {
-	svc   *Service
-	bus   *eventbus.Bus
-	pub   Publisher
+	svc     *Service
+	bus     *eventbus.Bus
+	pub     Publisher
+	policy  *PolicyEvaluator
 }
 
-func NewExecutor(svc *Service, bus *eventbus.Bus, pub Publisher) *Executor {
-	return &Executor{svc: svc, bus: bus, pub: pub}
+func NewExecutor(svc *Service, bus *eventbus.Bus, pub Publisher, policy *PolicyEvaluator) *Executor {
+	return &Executor{svc: svc, bus: bus, pub: pub, policy: policy}
 }
 
 func (e *Executor) Run(ctx context.Context) {
@@ -41,13 +42,44 @@ func (e *Executor) Run(ctx context.Context) {
 }
 
 func (e *Executor) processPending(ctx context.Context) {
-	pending, err := e.svc.List(ctx, Filter{Status: "approved", Limit: 50})
+	approved, err := e.svc.List(ctx, Filter{Status: "approved", Limit: 50})
 	if err != nil {
 		slog.Error("action executor: list approved failed", "error", err)
 		return
 	}
+	for _, a := range approved {
+		e.Execute(ctx, a)
+	}
 
-	for _, a := range pending {
+	if e.policy != nil {
+		e.autoApproveProposed(ctx)
+	}
+}
+
+func (e *Executor) autoApproveProposed(ctx context.Context) {
+	proposed, err := e.svc.List(ctx, Filter{Status: "proposed", Limit: 50})
+	if err != nil {
+		slog.Error("action executor: list proposed failed", "error", err)
+		return
+	}
+
+	for _, a := range proposed {
+		autoOK, reason := e.policy.Evaluate(ctx, a)
+		if !autoOK {
+			continue
+		}
+
+		if _, err := e.svc.Approve(ctx, a.ID); err != nil {
+			slog.Error("action executor: auto-approve failed", "error", err, "actionId", a.ID)
+			continue
+		}
+		slog.Info("action auto-approved by policy", "actionId", a.ID, "type", a.Type, "reason", reason)
+		e.bus.Publish(eventbus.NewEvent("action.approved", "policy", map[string]any{
+			"actionId": a.ID,
+			"type":     a.Type,
+			"reason":   reason,
+		}))
+
 		e.Execute(ctx, a)
 	}
 }

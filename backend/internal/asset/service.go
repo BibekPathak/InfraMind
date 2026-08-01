@@ -64,6 +64,21 @@ func (s *Service) List(ctx context.Context) ([]Asset, error) {
 	return s.repo.List(ctx)
 }
 
+func (s *Service) UpdateAutonomyMode(ctx context.Context, id, mode string) (*Asset, error) {
+	valid := map[string]bool{"manual": true, "advisory": true, "autonomous": true}
+	if !valid[mode] {
+		return nil, fmt.Errorf("invalid autonomy mode: %s (must be manual, advisory, or autonomous)", mode)
+	}
+	if err := s.repo.UpdateAutonomyMode(ctx, id, mode); err != nil {
+		return nil, fmt.Errorf("update autonomy mode: %w", err)
+	}
+	return s.repo.GetByID(ctx, id)
+}
+
+func (s *Service) GetAutonomyMode(ctx context.Context, id string) (string, error) {
+	return s.repo.GetAutonomyMode(ctx, id)
+}
+
 func (s *Service) Delete(ctx context.Context, id string) error {
 	return s.repo.Delete(ctx, id)
 }
