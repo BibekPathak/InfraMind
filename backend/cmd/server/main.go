@@ -17,6 +17,7 @@ import (
 	"github.com/inframind/backend/internal/asset"
 	"github.com/inframind/backend/internal/assettype"
 	"github.com/inframind/backend/internal/auth"
+	"github.com/inframind/backend/internal/action"
 	"github.com/inframind/backend/internal/config"
 	"github.com/inframind/backend/internal/db"
 	"github.com/inframind/backend/internal/device"
@@ -74,6 +75,8 @@ func main() {
 	alertSvc := alert.NewService(alertRepo)
 	workOrderRepo := workorder.NewRepository(pool)
 	workOrderSvc := workorder.NewService(workOrderRepo)
+	actionRepo := action.NewRepository(pool)
+	actionSvc := action.NewService(actionRepo)
 
 	// WebSocket hub
 	wsHub := telemetry.NewWSHub()
@@ -144,6 +147,7 @@ func main() {
 		twin.NewHandler(twinSvc, bus).Register(r)
 		auth.NewHandler(authSvc).RegisterRoutes(r)
 		workorder.NewHandler(workOrderSvc, bus).Register(r)
+		action.NewHandler(actionSvc, bus).Register(r)
 	})
 
 	// Register event subscriptions
@@ -152,6 +156,7 @@ func main() {
 	telemetry.RegisterEvents(bus)
 	alert.RegisterEvents(bus, alertSvc)
 	workorder.RegisterEvents(bus, workOrderSvc, deviceSvc)
+	action.RegisterEvents(bus, actionSvc)
 
 	// Server
 	srv := &http.Server{
