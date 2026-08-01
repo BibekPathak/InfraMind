@@ -4,6 +4,7 @@ export interface Asset {
   id: string
   name: string
   type: string
+  autonomyMode?: string
   location?: Record<string, unknown>
   metadata?: Record<string, unknown>
   createdAt: string

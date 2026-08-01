@@ -128,6 +128,47 @@ paths:
                 items:
                   $ref: "#/components/schemas/Device"
 
+  /assets/{id}/autonomy:
+    get:
+      summary: Get asset autonomy mode
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Autonomy mode
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  autonomyMode: { type: string, enum: [manual, advisory, autonomous] }
+    patch:
+      summary: Update asset autonomy mode
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [autonomyMode]
+              properties:
+                autonomyMode: { type: string, enum: [manual, advisory, autonomous] }
+      responses:
+        "200":
+          description: Updated asset
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asset"
+
   /asset-types:
     get:
       summary: List all asset types
@@ -698,6 +739,98 @@ paths:
                 items:
                   $ref: "#/components/schemas/TimelineEvent"
 
+  /actions:
+    get:
+      summary: List autonomous actions with optional filters
+      parameters:
+        - name: asset_id
+          in: query
+          schema: { type: string, format: uuid }
+        - name: status
+          in: query
+          schema: { type: string, enum: [proposed, approved, rejected, executed, failed] }
+        - name: type
+          in: query
+          schema: { type: string, enum: [command, restart, config_change, notification] }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 50 }
+      responses:
+        "200":
+          description: Action list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Action"
+    post:
+      summary: Propose an autonomous action
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProposeActionRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+
+  /actions/{id}:
+    get:
+      summary: Get action by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Action detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+
+  /actions/{id}/approve:
+    patch:
+      summary: Approve an action
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Approved
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+
+  /actions/{id}/reject:
+    patch:
+      summary: Reject an action
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200":
+          description: Rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Action"
+
 components:
   schemas:
     Asset:
@@ -706,6 +839,7 @@ components:
         id: { type: string, format: uuid }
         name: { type: string }
         type: { type: string }
+        autonomyMode: { type: string, enum: [manual, advisory, autonomous] }
         location: { type: object }
         metadata: { type: object }
         createdAt: { type: string, format: date-time }
@@ -1004,3 +1138,34 @@ components:
         action: { type: string }
         actor: { type: string }
         note: { type: string }
+
+    Action:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        assetId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid, nullable: true }
+        type: { type: string, enum: [command, restart, config_change, notification] }
+        payload: { type: object }
+        source: { type: string, enum: [ai, manual] }
+        status: { type: string, enum: [proposed, approved, rejected, executed, failed] }
+        approvalRequired: { type: boolean }
+        autoApproved: { type: boolean }
+        reason: { type: string }
+        result: { type: string, nullable: true }
+        proposedAt: { type: string, format: date-time }
+        executedAt: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    ProposeActionRequest:
+      type: object
+      required: [assetId, type]
+      properties:
+        assetId: { type: string, format: uuid }
+        deviceId: { type: string, format: uuid }
+        type: { type: string, enum: [command, restart, config_change, notification] }
+        payload: { type: object }
+        source: { type: string, enum: [ai, manual] }
+        reason: { type: string }
+        approvalRequired: { type: boolean }
