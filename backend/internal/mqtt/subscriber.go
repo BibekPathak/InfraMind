@@ -53,6 +53,19 @@ func (s *Subscriber) Subscribe(topic string, qos byte) error {
 	return nil
 }
 
+func (s *Subscriber) Publish(topic string, qos byte, payload []byte) error {
+	if s.client == nil || !s.client.IsConnected() {
+		return fmt.Errorf("mqtt client not connected")
+	}
+	token := s.client.Publish(topic, qos, false, payload)
+	token.Wait()
+	if token.Error() != nil {
+		return fmt.Errorf("mqtt publish %s: %w", topic, token.Error())
+	}
+	slog.Debug("mqtt published", "topic", topic)
+	return nil
+}
+
 func (s *Subscriber) Close() {
 	if s.client != nil && s.client.IsConnected() {
 		s.client.Disconnect(250)
