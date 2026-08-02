@@ -24,6 +24,7 @@ import (
 	"github.com/inframind/backend/internal/eventbus"
 	"github.com/inframind/backend/internal/health"
 	"github.com/inframind/backend/internal/mqtt"
+	"github.com/inframind/backend/internal/organization"
 	"github.com/inframind/backend/internal/telemetry"
 	"github.com/inframind/backend/internal/twin"
 	"github.com/inframind/backend/internal/workorder"
@@ -64,8 +65,10 @@ func main() {
 	telemetryRepo := telemetry.NewRepository(pool)
 	alertRepo := alert.NewRepository(pool)
 	assetTypeRepo := assettype.NewRepository(pool)
+	orgRepo := organization.NewRepository(pool)
 
 	// Services
+	orgSvc := organization.NewService(orgRepo)
 	assetTypeSvc := assettype.NewService(assetTypeRepo)
 	assetSvc := asset.NewService(assetRepo)
 	assetSvc.SetTypeValidator(assetTypeSvc)
@@ -143,6 +146,7 @@ func main() {
 		})
 
 		asset.NewHandler(assetSvc, bus).Register(r)
+		organization.NewHandler(orgSvc, bus).Register(r)
 		assettype.NewHandler(assetTypeSvc, bus).Register(r)
 		device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
 		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
