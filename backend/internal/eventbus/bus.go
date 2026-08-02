@@ -21,12 +21,17 @@ type Handler func(Event)
 type Bus struct {
 	mu       sync.RWMutex
 	handlers map[string][]Handler
+	metrics  interface{ IncEventBusPublish() }
 }
 
 func New() *Bus {
 	return &Bus{
 		handlers: make(map[string][]Handler),
 	}
+}
+
+func (b *Bus) SetMetrics(m interface{ IncEventBusPublish() }) {
+	b.metrics = m
 }
 
 func (b *Bus) Subscribe(eventType string, handler Handler) {
@@ -40,6 +45,10 @@ func (b *Bus) Publish(event Event) {
 	b.mu.RLock()
 	handlers := b.handlers[event.Type]
 	b.mu.RUnlock()
+
+	if b.metrics != nil {
+		b.metrics.IncEventBusPublish()
+	}
 
 	if len(handlers) == 0 {
 		return

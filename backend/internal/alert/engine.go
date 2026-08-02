@@ -9,21 +9,27 @@ import (
 	"github.com/inframind/backend/internal/telemetry"
 )
 
+type EngineMetrics interface {
+	IncAlertsRaised()
+}
+
 type Engine struct {
 	alertSvc *Service
 	bus      *eventbus.Bus
 	notifier Notifier
 	telemetryRepo *telemetry.Repository
+	metrics   EngineMetrics
 	deviceIDs []string
 	interval  time.Duration
 }
 
-func NewEngine(alertSvc *Service, bus *eventbus.Bus, notifier Notifier, telemetryRepo *telemetry.Repository) *Engine {
+func NewEngine(alertSvc *Service, bus *eventbus.Bus, notifier Notifier, telemetryRepo *telemetry.Repository, metrics EngineMetrics) *Engine {
 	return &Engine{
 		alertSvc:      alertSvc,
 		bus:           bus,
 		notifier:      notifier,
 		telemetryRepo: telemetryRepo,
+		metrics:       metrics,
 		interval:      10 * time.Second,
 	}
 }
@@ -117,6 +123,9 @@ func (e *Engine) evaluateDevice(ctx context.Context, deviceID string, t *telemet
 		}
 
 		slog.Warn("alert raised", "deviceId", deviceID, "rule", rc.rule, "severity", rc.severity)
+		if e.metrics != nil {
+			e.metrics.IncAlertsRaised()
+		}
 		e.bus.Publish(eventbus.NewEvent("alert.raised", "alert_engine", a))
 		e.notifier.Send(a)
 	}

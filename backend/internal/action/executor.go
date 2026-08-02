@@ -14,15 +14,20 @@ type Publisher interface {
 	Publish(topic string, qos byte, payload []byte) error
 }
 
+type ExecutorMetrics interface {
+	IncActionsExecuted()
+}
+
 type Executor struct {
 	svc     *Service
 	bus     *eventbus.Bus
 	pub     Publisher
 	policy  *PolicyEvaluator
+	metrics ExecutorMetrics
 }
 
-func NewExecutor(svc *Service, bus *eventbus.Bus, pub Publisher, policy *PolicyEvaluator) *Executor {
-	return &Executor{svc: svc, bus: bus, pub: pub, policy: policy}
+func NewExecutor(svc *Service, bus *eventbus.Bus, pub Publisher, policy *PolicyEvaluator, metrics ExecutorMetrics) *Executor {
+	return &Executor{svc: svc, bus: bus, pub: pub, policy: policy, metrics: metrics}
 }
 
 func (e *Executor) Run(ctx context.Context) {
@@ -114,6 +119,10 @@ func (e *Executor) Execute(ctx context.Context, a Action) {
 
 	slog.Info("action executed",
 		"actionId", a.ID, "type", a.Type, "deviceId", deref(a.DeviceID), "topic", topic)
+
+	if e.metrics != nil {
+		e.metrics.IncActionsExecuted()
+	}
 
 	if err := e.svc.MarkExecuted(ctx, a.ID, "command published to "+topic); err != nil {
 		slog.Error("action executor: mark executed failed", "error", err, "actionId", a.ID)

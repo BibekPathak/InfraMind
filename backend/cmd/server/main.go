@@ -13,19 +13,22 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/inframind/backend/internal/action"
 	"github.com/inframind/backend/internal/alert"
 	"github.com/inframind/backend/internal/asset"
 	"github.com/inframind/backend/internal/assettype"
 	"github.com/inframind/backend/internal/audit"
 	"github.com/inframind/backend/internal/auth"
-	"github.com/inframind/backend/internal/action"
 	"github.com/inframind/backend/internal/config"
 	"github.com/inframind/backend/internal/db"
 	"github.com/inframind/backend/internal/device"
 	"github.com/inframind/backend/internal/eventbus"
 	"github.com/inframind/backend/internal/health"
+	"github.com/inframind/backend/internal/metrics"
 	"github.com/inframind/backend/internal/mqtt"
 	"github.com/inframind/backend/internal/organization"
+	"github.com/inframind/backend/internal/otel"
 	"github.com/inframind/backend/internal/telemetry"
 	"github.com/inframind/backend/internal/twin"
 	"github.com/inframind/backend/internal/workorder"
@@ -42,6 +45,18 @@ func main() {
 		Level: slog.LevelInfo,
 	})))
 
+	// OpenTelemetry tracing (no-op when no collector configured)
+	shutdownTracing, err := otel.Setup("infra-backend")
+	if err != nil {
+		slog.Warn("failed to initialize tracing, continuing without it", "error", err)
+	} else {
+		defer shutdownTracing(context.Background())
+	}
+
+	// Prometheus metrics
+	promRegistry := prometheus.NewRegistry()
+	m := metrics.New(promRegistry)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -57,6 +72,7 @@ func main() {
 	authSvc := auth.NewAuthService(auth.NewJWTManager(cfg.Auth.JWTSecret))
 
 	bus := eventbus.New()
+	bus.SetMetrics(m)
 
 	emqxClient := mqtt.NewEMQXClient(cfg.MQTT.APIURL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword)
 
@@ -94,10 +110,10 @@ func main() {
 
 	// Notifier + Alert engine
 	notifier := alert.NewLogNotifier()
-	alertEngine := alert.NewEngine(alertSvc, bus, notifier, telemetryRepo)
+	alertEngine := alert.NewEngine(alertSvc, bus, notifier, telemetryRepo, m)
 
 	// Telemetry ingester (wired to MQTT)
-	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus, wsHub)
+	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus, wsHub, m)
 
 	// MQTT
 	mqttSub, err := mqtt.NewSubscriber(cfg.MQTT.URL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword, func(topic string, payload []byte) {
@@ -114,7 +130,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	actionExec := action.NewExecutor(actionSvc, bus, mqttSub, action.NewPolicyEvaluator(assetSvc))
+	actionExec := action.NewExecutor(actionSvc, bus, mqttSub, action.NewPolicyEvaluator(assetSvc), m)
 	go actionExec.Run(ctx)
 
 	heartbeatMon := device.NewHeartbeatMonitor(pool, bus)
@@ -131,6 +147,7 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(30 * time.Second))
+	r.Use(m.Middleware)
 	r.Use(auth.Middleware)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
@@ -140,6 +157,9 @@ func main() {
 		AllowCredentials: false,
 		MaxAge:           300,
 	}))
+
+	// Prometheus metrics endpoint (public, no auth)
+	r.Get("/metrics", m.Handler().ServeHTTP)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Get("/health", func(w http.ResponseWriter, r *http.Request) {

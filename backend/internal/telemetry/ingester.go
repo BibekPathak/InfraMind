@@ -16,12 +16,19 @@ const (
 	batchTimeout = 5 * time.Second
 )
 
+type IngesterMetrics interface {
+	IncTelemetryIngested()
+	ObserveBatchSize(size int)
+	IncMQTTMessage()
+}
+
 type Ingester struct {
 	repo      *Repository
 	devSvc    *device.Service
 	bus       *eventbus.Bus
 	hub       *WSHub
 	validator *Validator
+	metrics   IngesterMetrics
 
 	mu          sync.Mutex
 	batch       []Telemetry
@@ -30,13 +37,14 @@ type Ingester struct {
 	doneCh      chan struct{}
 }
 
-func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hub *WSHub) *Ingester {
+func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hub *WSHub, metrics IngesterMetrics) *Ingester {
 	ing := &Ingester{
 		repo:      repo,
 		devSvc:    devSvc,
 		bus:       bus,
 		hub:       hub,
 		validator: NewValidator(),
+		metrics:   metrics,
 		batch:     make([]Telemetry, 0, batchSize),
 		batchTicker: time.NewTicker(batchTimeout),
 		flushCh:   make(chan struct{}),
@@ -80,6 +88,9 @@ func (ing *Ingester) flush() {
 		}
 	} else {
 		slog.Debug("batch inserted", "count", len(batch))
+		if ing.metrics != nil {
+			ing.metrics.ObserveBatchSize(len(batch))
+		}
 	}
 }
 
@@ -90,6 +101,10 @@ func (ing *Ingester) Stop() {
 func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 	if !strings.HasPrefix(topic, "telemetry/") {
 		return
+	}
+
+	if ing.metrics != nil {
+		ing.metrics.IncMQTTMessage()
 	}
 
 	result := ing.validator.Validate(topic, payload)
@@ -126,6 +141,10 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 
 	if shouldFlush {
 		ing.flush()
+	}
+
+	if ing.metrics != nil {
+		ing.metrics.IncTelemetryIngested()
 	}
 
 	if err := ing.devSvc.HandleHeartbeat(nil, p.DeviceID); err != nil {
