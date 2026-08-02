@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/inframind/backend/internal/tenant"
 )
 
 type Repository struct {
@@ -20,9 +21,9 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) Create(ctx context.Context, wo *WorkOrder) error {
 	timeline, _ := json.Marshal(wo.Timeline)
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO work_orders (id, asset_id, alert_id, type, priority, status, assigned_to, estimated_cost, description, timeline, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)`,
-		wo.ID, wo.AssetID, wo.AlertID, wo.Type, wo.Priority, wo.Status, wo.AssignedTo, wo.EstimatedCost, wo.Description, timeline, time.Now().UTC(),
+		`INSERT INTO work_orders (id, asset_id, alert_id, type, priority, status, assigned_to, estimated_cost, description, timeline, organization_id, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)`,
+		wo.ID, wo.AssetID, wo.AlertID, wo.Type, wo.Priority, wo.Status, wo.AssignedTo, wo.EstimatedCost, wo.Description, timeline, tenant.EffectiveOrgID(ctx), time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("create work order: %w", err)
@@ -38,7 +39,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*WorkOrder, error)
 
 	err := r.pool.QueryRow(ctx,
 		`SELECT id, asset_id, alert_id, type, priority, status, assigned_to, estimated_cost, description, timeline, created_at, updated_at
-		 FROM work_orders WHERE id = $1`, id,
+		 FROM work_orders WHERE id = $1 AND organization_id = $2`, id, tenant.EffectiveOrgID(ctx),
 	).Scan(&wo.ID, &wo.AssetID, &alertID, &wo.Type, &wo.Priority, &wo.Status, &assignedTo, &wo.EstimatedCost, &wo.Description, &timeline, &wo.CreatedAt, &wo.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get work order %s: %w", id, err)
@@ -56,9 +57,9 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*WorkOrder, error)
 
 func (r *Repository) List(ctx context.Context, f Filter) ([]WorkOrder, error) {
 	query := `SELECT id, asset_id, alert_id, type, priority, status, assigned_to, estimated_cost, description, timeline, created_at, updated_at
-		 FROM work_orders WHERE 1=1`
-	args := []any{}
-	argIdx := 1
+		 FROM work_orders WHERE organization_id = $1`
+	args := []any{tenant.EffectiveOrgID(ctx)}
+	argIdx := 2
 
 	if f.AssetID != "" {
 		query += fmt.Sprintf(" AND asset_id = $%d", argIdx)
@@ -121,7 +122,8 @@ func (r *Repository) List(ctx context.Context, f Filter) ([]WorkOrder, error) {
 
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE work_orders SET status = $2, updated_at = NOW() WHERE id = $1`, id, status)
+		`UPDATE work_orders SET status = $2, updated_at = NOW() WHERE id = $1 AND organization_id = $3`,
+		id, status, tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("update work order status %s: %w", id, err)
 	}
@@ -130,7 +132,8 @@ func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error 
 
 func (r *Repository) Assign(ctx context.Context, id, assignedTo string) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE work_orders SET assigned_to = $2, status = 'assigned', updated_at = NOW() WHERE id = $1`, id, assignedTo)
+		`UPDATE work_orders SET assigned_to = $2, status = 'assigned', updated_at = NOW() WHERE id = $1 AND organization_id = $3`,
+		id, assignedTo, tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("assign work order %s: %w", id, err)
 	}
@@ -139,8 +142,8 @@ func (r *Repository) Assign(ctx context.Context, id, assignedTo string) error {
 
 func (r *Repository) AppendTimeline(ctx context.Context, id string, event TimelineEvent) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE work_orders SET timeline = timeline || $2::jsonb, updated_at = NOW() WHERE id = $1`,
-		id, mustJSON(event))
+		`UPDATE work_orders SET timeline = timeline || $2::jsonb, updated_at = NOW() WHERE id = $1 AND organization_id = $3`,
+		id, mustJSON(event), tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("append timeline %s: %w", id, err)
 	}
@@ -151,8 +154,8 @@ func (r *Repository) HasOpenForAsset(ctx context.Context, assetID string) (bool,
 	var count int
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM work_orders
-		 WHERE asset_id = $1 AND status IN ('open', 'assigned', 'in_progress')`,
-		assetID,
+		 WHERE asset_id = $1 AND status IN ('open', 'assigned', 'in_progress') AND organization_id = $2`,
+		assetID, tenant.EffectiveOrgID(ctx),
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("check open work order: %w", err)

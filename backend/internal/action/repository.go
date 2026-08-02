@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/inframind/backend/internal/tenant"
 )
 
 type Repository struct {
@@ -20,9 +21,9 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 func (r *Repository) Create(ctx context.Context, a *Action) error {
 	payload, _ := json.Marshal(a.Payload)
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO actions (id, asset_id, device_id, type, payload, source, status, approval_required, auto_approved, reason, proposed_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11)`,
-		a.ID, a.AssetID, a.DeviceID, a.Type, payload, a.Source, a.Status, a.ApprovalRequired, a.AutoApproved, a.Reason, time.Now().UTC(),
+		`INSERT INTO actions (id, asset_id, device_id, type, payload, source, status, approval_required, auto_approved, reason, organization_id, proposed_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12)`,
+		a.ID, a.AssetID, a.DeviceID, a.Type, payload, a.Source, a.Status, a.ApprovalRequired, a.AutoApproved, a.Reason, tenant.EffectiveOrgID(ctx), time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("create action: %w", err)
@@ -38,7 +39,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Action, error) {
 
 	err := r.pool.QueryRow(ctx,
 		`SELECT id, asset_id, device_id, type, payload, source, status, approval_required, auto_approved, reason, result, proposed_at, executed_at, created_at, updated_at
-		 FROM actions WHERE id = $1`, id,
+		 FROM actions WHERE id = $1 AND organization_id = $2`, id, tenant.EffectiveOrgID(ctx),
 	).Scan(&a.ID, &a.AssetID, &deviceID, &a.Type, &payload, &a.Source, &a.Status, &a.ApprovalRequired, &a.AutoApproved, &a.Reason, &result, &a.ProposedAt, &a.ExecutedAt, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get action %s: %w", id, err)
@@ -56,9 +57,9 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Action, error) {
 
 func (r *Repository) List(ctx context.Context, f Filter) ([]Action, error) {
 	query := `SELECT id, asset_id, device_id, type, payload, source, status, approval_required, auto_approved, reason, result, proposed_at, executed_at, created_at, updated_at
-		 FROM actions WHERE 1=1`
-	args := []any{}
-	argIdx := 1
+		 FROM actions WHERE organization_id = $1`
+	args := []any{tenant.EffectiveOrgID(ctx)}
+	argIdx := 2
 
 	if f.AssetID != "" {
 		query += fmt.Sprintf(" AND asset_id = $%d", argIdx)
@@ -121,7 +122,8 @@ func (r *Repository) List(ctx context.Context, f Filter) ([]Action, error) {
 
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE actions SET status = $2, updated_at = NOW() WHERE id = $1`, id, status)
+		`UPDATE actions SET status = $2, updated_at = NOW() WHERE id = $1 AND organization_id = $3`,
+		id, status, tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("update action status %s: %w", id, err)
 	}
@@ -131,8 +133,8 @@ func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error 
 func (r *Repository) MarkExecuted(ctx context.Context, id string, result string) error {
 	now := time.Now().UTC()
 	_, err := r.pool.Exec(ctx,
-		`UPDATE actions SET status = 'executed', result = $2, executed_at = $3, updated_at = $3 WHERE id = $1`,
-		id, result, now)
+		`UPDATE actions SET status = 'executed', result = $2, executed_at = $3, updated_at = $3 WHERE id = $1 AND organization_id = $4`,
+		id, result, now, tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("mark action executed %s: %w", id, err)
 	}
@@ -141,8 +143,8 @@ func (r *Repository) MarkExecuted(ctx context.Context, id string, result string)
 
 func (r *Repository) MarkFailed(ctx context.Context, id string, result string) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE actions SET status = 'failed', result = $2, updated_at = NOW() WHERE id = $1`,
-		id, result)
+		`UPDATE actions SET status = 'failed', result = $2, updated_at = NOW() WHERE id = $1 AND organization_id = $3`,
+		id, result, tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("mark action failed %s: %w", id, err)
 	}
@@ -154,8 +156,8 @@ func (r *Repository) HasPendingForDeviceType(ctx context.Context, deviceID, acti
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM actions
 		 WHERE device_id = $1 AND type = $2
-		   AND status IN ('proposed', 'approved')`,
-		deviceID, actionType,
+		   AND status IN ('proposed', 'approved') AND organization_id = $3`,
+		deviceID, actionType, tenant.EffectiveOrgID(ctx),
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("check pending action: %w", err)

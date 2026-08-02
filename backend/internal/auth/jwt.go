@@ -8,8 +8,9 @@ import (
 )
 
 type Claims struct {
-	UserID string `json:"user_id"`
-	Role   string `json:"role"`
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+	OrganizationID string `json:"organization_id"`
 	jwt.RegisteredClaims
 }
 
@@ -27,10 +28,11 @@ func NewJWTManager(secret string) *JWTManager {
 	}
 }
 
-func (m *JWTManager) GenerateAccessToken(userID, role string) (string, error) {
+func (m *JWTManager) GenerateAccessToken(userID, role, orgID string) (string, error) {
 	claims := Claims{
-		UserID: userID,
-		Role:   role,
+		UserID:         userID,
+		Role:           role,
+		OrganizationID: orgID,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(m.accessTTL)),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),

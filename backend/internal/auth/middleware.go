@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/inframind/backend/internal/tenant"
 )
 
 type chiRouter interface {
@@ -23,15 +25,19 @@ func InitJWT(secret string) {
 
 func Middleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+
 		if jwtManager == nil {
-			ctx := context.WithValue(r.Context(), UserIDKey, "system")
+			ctx = context.WithValue(ctx, UserIDKey, "system")
+			ctx = tenant.WithOrg(ctx, tenant.DefaultOrgID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
 
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			ctx := context.WithValue(r.Context(), UserIDKey, "anonymous")
+			ctx = context.WithValue(ctx, UserIDKey, "anonymous")
+			ctx = tenant.WithOrg(ctx, tenant.DefaultOrgID)
 			next.ServeHTTP(w, r.WithContext(ctx))
 			return
 		}
@@ -49,8 +55,14 @@ func Middleware(next http.Handler) http.Handler {
 			return
 		}
 
-		ctx := context.WithValue(r.Context(), UserIDKey, claims.UserID)
+		orgID := claims.OrganizationID
+		if orgID == "" {
+			orgID = tenant.DefaultOrgID
+		}
+
+		ctx = context.WithValue(ctx, UserIDKey, claims.UserID)
 		ctx = context.WithValue(ctx, RoleKey, claims.Role)
+		ctx = tenant.WithOrg(ctx, orgID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

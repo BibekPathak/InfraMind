@@ -5,15 +5,18 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/inframind/backend/internal/tenant"
+
 	"golang.org/x/crypto/bcrypt"
 )
 
 type User struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	PasswordHash string `json:"-"`
-	DisplayName  string `json:"displayName"`
-	Role         string `json:"role"`
+	ID             string `json:"id"`
+	Email          string `json:"email"`
+	PasswordHash   string `json:"-"`
+	DisplayName    string `json:"displayName"`
+	Role           string `json:"role"`
+	OrganizationID string `json:"organizationId"`
 }
 
 type Service struct {
@@ -25,10 +28,11 @@ func NewAuthService(jwt *JWTManager) *Service {
 }
 
 type LoginResponse struct {
-	AccessToken  string `json:"accessToken"`
-	UserID       string `json:"userId"`
-	Role         string `json:"role"`
-	DisplayName  string `json:"displayName"`
+	AccessToken    string `json:"accessToken"`
+	UserID         string `json:"userId"`
+	Role           string `json:"role"`
+	DisplayName    string `json:"displayName"`
+	OrganizationID string `json:"organizationId"`
 }
 
 type RegisterRequest struct {
@@ -52,16 +56,17 @@ func (s *Service) Register(req RegisterRequest) (*LoginResponse, error) {
 		req.DisplayName = req.Email
 	}
 
-	token, err := s.jwt.GenerateAccessToken(userID, "admin")
+	token, err := s.jwt.GenerateAccessToken(userID, "admin", tenant.DefaultOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("generate token: %w", err)
 	}
 
 	return &LoginResponse{
-		AccessToken: token,
-		UserID:      userID,
-		Role:        "admin",
-		DisplayName: req.DisplayName,
+		AccessToken:    token,
+		UserID:         userID,
+		Role:           "admin",
+		DisplayName:    req.DisplayName,
+		OrganizationID: tenant.DefaultOrgID,
 	}, nil
 }
 
@@ -70,16 +75,17 @@ func (s *Service) Login(email, password string) (*LoginResponse, error) {
 		return nil, fmt.Errorf("invalid credentials")
 	}
 
-	token, err := s.jwt.GenerateAccessToken("user-admin", "admin")
+	token, err := s.jwt.GenerateAccessToken("user-admin", "admin", tenant.DefaultOrgID)
 	if err != nil {
 		return nil, fmt.Errorf("generate token: %w", err)
 	}
 
 	return &LoginResponse{
-		AccessToken: token,
-		UserID:      "user-admin",
-		Role:        "admin",
-		DisplayName: "Admin",
+		AccessToken:    token,
+		UserID:         "user-admin",
+		Role:           "admin",
+		DisplayName:    "Admin",
+		OrganizationID: tenant.DefaultOrgID,
 	}, nil
 }
 

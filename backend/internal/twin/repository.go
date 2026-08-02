@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/inframind/backend/internal/tenant"
 )
 
 type Repository struct {
@@ -23,8 +24,8 @@ func (r *Repository) Upsert(ctx context.Context, t *DigitalTwin) error {
 	history, _ := json.Marshal(t.MaintenanceHistory)
 
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO digital_twins (asset_id, device_id, metadata, live_state, maintenance_history, ai_summary, health_score, health_level, synced_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $10)
+		`INSERT INTO digital_twins (asset_id, device_id, metadata, live_state, maintenance_history, ai_summary, health_score, health_level, organization_id, synced_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11)
 		 ON CONFLICT (asset_id) DO UPDATE SET
 		     device_id = EXCLUDED.device_id,
 		     metadata = EXCLUDED.metadata,
@@ -33,9 +34,10 @@ func (r *Repository) Upsert(ctx context.Context, t *DigitalTwin) error {
 		     ai_summary = EXCLUDED.ai_summary,
 		     health_score = EXCLUDED.health_score,
 		     health_level = EXCLUDED.health_level,
+		     organization_id = EXCLUDED.organization_id,
 		     synced_at = EXCLUDED.synced_at,
 		     updated_at = EXCLUDED.updated_at`,
-		t.AssetID, t.DeviceID, meta, state, history, t.AISummary, t.HealthScore, t.HealthLevel, t.SyncedAt, time.Now().UTC(),
+		t.AssetID, t.DeviceID, meta, state, history, t.AISummary, t.HealthScore, t.HealthLevel, tenant.EffectiveOrgID(ctx), t.SyncedAt, time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("upsert twin: %w", err)

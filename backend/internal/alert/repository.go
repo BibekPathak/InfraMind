@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/inframind/backend/internal/tenant"
 )
 
 type Repository struct {
@@ -18,9 +19,9 @@ func NewRepository(pool *pgxpool.Pool) *Repository {
 
 func (r *Repository) Create(ctx context.Context, a *Alert) error {
 	_, err := r.pool.Exec(ctx,
-		`INSERT INTO alerts (id, device_id, severity, rule, message, status, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $7)`,
-		a.ID, a.DeviceID, a.Severity, a.Rule, a.Message, a.Status, time.Now().UTC(),
+		`INSERT INTO alerts (id, device_id, severity, rule, message, status, organization_id, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)`,
+		a.ID, a.DeviceID, a.Severity, a.Rule, a.Message, a.Status, tenant.EffectiveOrgID(ctx), time.Now().UTC(),
 	)
 	if err != nil {
 		return fmt.Errorf("create alert: %w", err)
@@ -32,7 +33,7 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Alert, error) {
 	a := &Alert{}
 	err := r.pool.QueryRow(ctx,
 		`SELECT id, device_id, severity, rule, message, status, created_at, updated_at
-		 FROM alerts WHERE id = $1`, id,
+		 FROM alerts WHERE id = $1 AND organization_id = $2`, id, tenant.EffectiveOrgID(ctx),
 	).Scan(&a.ID, &a.DeviceID, &a.Severity, &a.Rule, &a.Message, &a.Status, &a.CreatedAt, &a.UpdatedAt)
 	if err != nil {
 		return nil, fmt.Errorf("get alert %s: %w", id, err)
@@ -42,9 +43,9 @@ func (r *Repository) GetByID(ctx context.Context, id string) (*Alert, error) {
 
 func (r *Repository) List(ctx context.Context, filter AlertFilter) ([]Alert, error) {
 	query := `SELECT id, device_id, severity, rule, message, status, created_at, updated_at
-		 FROM alerts WHERE 1=1`
-	args := []any{}
-	argIdx := 1
+		 FROM alerts WHERE organization_id = $1`
+	args := []any{tenant.EffectiveOrgID(ctx)}
+	argIdx := 2
 
 	if filter.DeviceID != "" {
 		query += fmt.Sprintf(" AND device_id = $%d", argIdx)
@@ -96,7 +97,8 @@ func (r *Repository) List(ctx context.Context, filter AlertFilter) ([]Alert, err
 
 func (r *Repository) UpdateStatus(ctx context.Context, id, status string) error {
 	_, err := r.pool.Exec(ctx,
-		`UPDATE alerts SET status = $2, updated_at = NOW() WHERE id = $1`, id, status)
+		`UPDATE alerts SET status = $2, updated_at = NOW() WHERE id = $1 AND organization_id = $3`,
+		id, status, tenant.EffectiveOrgID(ctx))
 	if err != nil {
 		return fmt.Errorf("update alert status %s: %w", id, err)
 	}
@@ -107,8 +109,8 @@ func (r *Repository) HasOpenAlertForRule(ctx context.Context, deviceID, rule str
 	var count int
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM alerts
-		 WHERE device_id = $1 AND rule = $2 AND status IN ('open', 'acknowledged')`,
-		deviceID, rule,
+		 WHERE device_id = $1 AND rule = $2 AND status IN ('open', 'acknowledged') AND organization_id = $3`,
+		deviceID, rule, tenant.EffectiveOrgID(ctx),
 	).Scan(&count)
 	if err != nil {
 		return false, fmt.Errorf("check open alert: %w", err)
