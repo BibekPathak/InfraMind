@@ -145,17 +145,35 @@ func main() {
 			fmt.Fprint(w, `{"status":"ok","service":"infra-backend"}`)
 		})
 
-		asset.NewHandler(assetSvc, bus).Register(r)
-		organization.NewHandler(orgSvc, bus).Register(r)
-		assettype.NewHandler(assetTypeSvc, bus).Register(r)
-		device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
+		// Read-only views available to all authenticated roles
 		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
-		alert.NewHandler(alertSvc, bus).Register(r)
 		health.NewHandler(healthSvc).Register(r)
 		twin.NewHandler(twinSvc, bus).Register(r)
+
+		// Asset type catalog: viewers can read; writes require operator
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireRoleOnMutation(auth.PermWrite))
+			assettype.NewHandler(assetTypeSvc, bus).Register(r)
+		})
+
+		// Assets, devices, alerts, work orders, actions: reads for all,
+		// writes (create/update) for operators and above
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireRoleOnMutation(auth.PermWrite))
+			asset.NewHandler(assetSvc, bus).Register(r)
+			device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
+			alert.NewHandler(alertSvc, bus).Register(r)
+			workorder.NewHandler(workOrderSvc, bus).Register(r)
+			action.NewHandler(actionSvc, bus).Register(r)
+		})
+
+		// Organization management: admin only
+		r.Group(func(r chi.Router) {
+			r.Use(auth.RequireAdmin())
+			organization.NewHandler(orgSvc, bus).Register(r)
+		})
+
 		auth.NewHandler(authSvc).RegisterRoutes(r)
-		workorder.NewHandler(workOrderSvc, bus).Register(r)
-		action.NewHandler(actionSvc, bus).Register(r)
 	})
 
 	// Register event subscriptions
