@@ -6,16 +6,19 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/inframind/backend/internal/audit"
+	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/eventbus"
 )
 
 type Handler struct {
-	svc *Service
-	bus *eventbus.Bus
+	svc   *Service
+	bus   *eventbus.Bus
+	audit *audit.Service
 }
 
-func NewHandler(svc *Service, bus *eventbus.Bus) *Handler {
-	return &Handler{svc: svc, bus: bus}
+func NewHandler(svc *Service, bus *eventbus.Bus, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, bus: bus, audit: auditSvc}
 }
 
 func (h *Handler) Register(r chi.Router) {
@@ -64,6 +67,11 @@ func (h *Handler) Propose(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("action.proposed", "backend", a))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "action.proposed", "action", a.ID, actionUserID(r), map[string]any{
+			"type": a.Type, "source": a.Source, "assetId": a.AssetID,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -89,6 +97,9 @@ func (h *Handler) Approve(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.bus.Publish(eventbus.NewEvent("action.approved", "backend", a))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "action.approved", "action", id, actionUserID(r), map[string]any{})
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(a)
 }
@@ -101,6 +112,16 @@ func (h *Handler) Reject(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.bus.Publish(eventbus.NewEvent("action.rejected", "backend", a))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "action.rejected", "action", id, actionUserID(r), map[string]any{})
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(a)
+}
+
+func actionUserID(r *http.Request) string {
+	if id, ok := r.Context().Value(auth.UserIDKey).(string); ok {
+		return id
+	}
+	return "system"
 }

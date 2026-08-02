@@ -5,16 +5,19 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/inframind/backend/internal/audit"
+	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/eventbus"
 )
 
 type Handler struct {
-	svc *Service
-	bus *eventbus.Bus
+	svc   *Service
+	bus   *eventbus.Bus
+	audit *audit.Service
 }
 
-func NewHandler(svc *Service, bus *eventbus.Bus) *Handler {
-	return &Handler{svc: svc, bus: bus}
+func NewHandler(svc *Service, bus *eventbus.Bus, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, bus: bus, audit: auditSvc}
 }
 
 func (h *Handler) RegisterRoutes(r chi.Router) {
@@ -39,6 +42,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("device.registered", "backend", d))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "device.registered", "device", d.ID, deviceUserID(r), map[string]any{
+			"assetId": d.AssetID, "firmwareVersion": d.FirmwareVersion,
+		})
+	}
 
 	resp := RegistrationResponse{
 		Device:       *d,
@@ -98,6 +106,18 @@ func (h *Handler) UpdateConfig(w http.ResponseWriter, r *http.Request) {
 		"deviceId": id,
 		"config":   req.Config,
 	}))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "device.configuration_updated", "device", id, deviceUserID(r), map[string]any{
+			"config": req.Config,
+		})
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(req.Config)
+}
+
+func deviceUserID(r *http.Request) string {
+	if id, ok := r.Context().Value(auth.UserIDKey).(string); ok {
+		return id
+	}
+	return "system"
 }

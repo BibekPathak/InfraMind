@@ -16,6 +16,7 @@ import (
 	"github.com/inframind/backend/internal/alert"
 	"github.com/inframind/backend/internal/asset"
 	"github.com/inframind/backend/internal/assettype"
+	"github.com/inframind/backend/internal/audit"
 	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/action"
 	"github.com/inframind/backend/internal/config"
@@ -81,6 +82,8 @@ func main() {
 	workOrderSvc := workorder.NewService(workOrderRepo)
 	actionRepo := action.NewRepository(pool)
 	actionSvc := action.NewService(actionRepo)
+	auditRepo := audit.NewRepository(pool)
+	auditSvc := audit.NewService(auditRepo)
 
 	// WebSocket hub
 	wsHub := telemetry.NewWSHub()
@@ -149,6 +152,7 @@ func main() {
 		telemetry.NewHandler(telemetryRepo, wsHub).Register(r)
 		health.NewHandler(healthSvc).Register(r)
 		twin.NewHandler(twinSvc, bus).Register(r)
+		audit.NewHandler(auditSvc).Register(r)
 
 		// Asset type catalog: viewers can read; writes require operator
 		r.Group(func(r chi.Router) {
@@ -160,17 +164,17 @@ func main() {
 		// writes (create/update) for operators and above
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireRoleOnMutation(auth.PermWrite))
-			asset.NewHandler(assetSvc, bus).Register(r)
-			device.NewHandler(deviceSvc, bus).RegisterRoutes(r)
+			asset.NewHandler(assetSvc, bus, auditSvc).Register(r)
+			device.NewHandler(deviceSvc, bus, auditSvc).RegisterRoutes(r)
 			alert.NewHandler(alertSvc, bus).Register(r)
-			workorder.NewHandler(workOrderSvc, bus).Register(r)
-			action.NewHandler(actionSvc, bus).Register(r)
+			workorder.NewHandler(workOrderSvc, bus, auditSvc).Register(r)
+			action.NewHandler(actionSvc, bus, auditSvc).Register(r)
 		})
 
 		// Organization management: admin only
 		r.Group(func(r chi.Router) {
 			r.Use(auth.RequireAdmin())
-			organization.NewHandler(orgSvc, bus).Register(r)
+			organization.NewHandler(orgSvc, bus, auditSvc).Register(r)
 		})
 
 		auth.NewHandler(authSvc).RegisterRoutes(r)

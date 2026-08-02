@@ -5,16 +5,19 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/inframind/backend/internal/audit"
+	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/eventbus"
 )
 
 type Handler struct {
-	svc *Service
-	bus *eventbus.Bus
+	svc   *Service
+	bus   *eventbus.Bus
+	audit *audit.Service
 }
 
-func NewHandler(svc *Service, bus *eventbus.Bus) *Handler {
-	return &Handler{svc: svc, bus: bus}
+func NewHandler(svc *Service, bus *eventbus.Bus, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, bus: bus, audit: auditSvc}
 }
 
 func (h *Handler) Register(r chi.Router) {
@@ -50,6 +53,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("asset.created", "backend", a))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "asset.created", "asset", a.ID, userID(r), map[string]any{
+			"name": a.Name, "type": a.Type,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -96,6 +104,11 @@ func (h *Handler) UpdateAutonomy(w http.ResponseWriter, r *http.Request) {
 		"id":           id,
 		"autonomyMode": req.AutonomyMode,
 	}))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "asset.autonomy_changed", "asset", id, userID(r), map[string]any{
+			"autonomyMode": req.AutonomyMode,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(a)
@@ -108,5 +121,15 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.bus.Publish(eventbus.NewEvent("asset.deleted", "backend", map[string]string{"id": id}))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "asset.deleted", "asset", id, userID(r), map[string]any{})
+	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func userID(r *http.Request) string {
+	if id, ok := r.Context().Value(auth.UserIDKey).(string); ok {
+		return id
+	}
+	return "system"
 }

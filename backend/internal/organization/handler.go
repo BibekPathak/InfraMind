@@ -5,16 +5,19 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/inframind/backend/internal/audit"
+	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/eventbus"
 )
 
 type Handler struct {
-	svc *Service
-	bus *eventbus.Bus
+	svc   *Service
+	bus   *eventbus.Bus
+	audit *audit.Service
 }
 
-func NewHandler(svc *Service, bus *eventbus.Bus) *Handler {
-	return &Handler{svc: svc, bus: bus}
+func NewHandler(svc *Service, bus *eventbus.Bus, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, bus: bus, audit: auditSvc}
 }
 
 func (h *Handler) Register(r chi.Router) {
@@ -48,6 +51,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("organization.created", "backend", o))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "organization.created", "organization", o.ID, orgUserID(r), map[string]any{
+			"name": o.Name, "slug": o.Slug,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -80,7 +88,17 @@ func (h *Handler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("organization.updated", "backend", o))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "organization.updated", "organization", id, orgUserID(r), map[string]any{})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(o)
+}
+
+func orgUserID(r *http.Request) string {
+	if id, ok := r.Context().Value(auth.UserIDKey).(string); ok {
+		return id
+	}
+	return "system"
 }

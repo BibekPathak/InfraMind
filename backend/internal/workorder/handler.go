@@ -6,16 +6,19 @@ import (
 	"strconv"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/inframind/backend/internal/audit"
+	"github.com/inframind/backend/internal/auth"
 	"github.com/inframind/backend/internal/eventbus"
 )
 
 type Handler struct {
-	svc *Service
-	bus *eventbus.Bus
+	svc   *Service
+	bus   *eventbus.Bus
+	audit *audit.Service
 }
 
-func NewHandler(svc *Service, bus *eventbus.Bus) *Handler {
-	return &Handler{svc: svc, bus: bus}
+func NewHandler(svc *Service, bus *eventbus.Bus, auditSvc *audit.Service) *Handler {
+	return &Handler{svc: svc, bus: bus, audit: auditSvc}
 }
 
 func (h *Handler) Register(r chi.Router) {
@@ -41,6 +44,11 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("workorder.created", "backend", wo))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "workorder.created", "work_order", wo.ID, woUserID(r), map[string]any{
+			"assetId": wo.AssetID, "type": wo.Type, "priority": wo.Priority,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
@@ -97,6 +105,11 @@ func (h *Handler) Assign(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("workorder.assigned", "backend", wo))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "workorder.assigned", "work_order", id, woUserID(r), map[string]any{
+			"assignedTo": req.AssignedTo,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(wo)
@@ -117,6 +130,11 @@ func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.bus.Publish(eventbus.NewEvent("workorder.status_changed", "backend", wo))
+	if h.audit != nil {
+		h.audit.Record(r.Context(), "workorder.status_changed", "work_order", id, woUserID(r), map[string]any{
+			"status": req.Status,
+		})
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(wo)
@@ -137,4 +155,11 @@ func (h *Handler) Timeline(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(timeline)
+}
+
+func woUserID(r *http.Request) string {
+	if id, ok := r.Context().Value(auth.UserIDKey).(string); ok {
+		return id
+	}
+	return "system"
 }
