@@ -67,6 +67,7 @@ services:
       INFRA_DB_URL: "postgres://infra:infra@timescaledb:5432/inframind?sslmode=disable"
       INFRA_MQTT_URL: "mqtt://emqx:1883"
       INFRA_REDIS_URL: "redis://redis:6379"
+      INFRA_REDIS_ENABLE_EVENTS: "true"
       INFRA_AI_URL: "http://ai:9090"
       INFRA_MQTT_API_URL: "http://emqx:18083"
       INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"

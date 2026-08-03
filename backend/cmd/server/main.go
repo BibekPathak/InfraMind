@@ -74,6 +74,22 @@ func main() {
 	bus := eventbus.New()
 	bus.SetMetrics(m)
 
+	// Durable cross-instance event delivery via Redis Streams (optional).
+	if cfg.Redis.EnableEvents {
+		instanceID := fmt.Sprintf("backend-%d", os.Getpid())
+		redisBackend, err := eventbus.NewRedisBackend(cfg.Redis.URL, instanceID)
+		if err != nil {
+			slog.Warn("eventbus: redis backend disabled", "error", err)
+		} else {
+			bus.SetRedisBackend(redisBackend)
+			go redisBackend.Start(ctx, func(evt eventbus.Event) {
+				bus.DispatchLocal(evt)
+			})
+			defer redisBackend.Close()
+			slog.Info("eventbus: redis streams enabled", "stream", "infra:events", "instance", instanceID)
+		}
+	}
+
 	emqxClient := mqtt.NewEMQXClient(cfg.MQTT.APIURL, cfg.MQTT.AdminUsername, cfg.MQTT.AdminPassword)
 
 	// Repositories

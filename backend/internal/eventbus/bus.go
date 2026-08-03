@@ -1,6 +1,7 @@
 package eventbus
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -22,6 +23,7 @@ type Bus struct {
 	mu       sync.RWMutex
 	handlers map[string][]Handler
 	metrics  interface{ IncEventBusPublish() }
+	redis    *RedisBackend
 }
 
 func New() *Bus {
@@ -32,6 +34,13 @@ func New() *Bus {
 
 func (b *Bus) SetMetrics(m interface{ IncEventBusPublish() }) {
 	b.metrics = m
+}
+
+// SetRedisBackend enables durable, cross-instance delivery via Redis Streams.
+// Events published afterwards are written to the stream (async) and dispatched
+// locally; the backend consumer delivers events from other instances.
+func (b *Bus) SetRedisBackend(rb *RedisBackend) {
+	b.redis = rb
 }
 
 func (b *Bus) Subscribe(eventType string, handler Handler) {
@@ -50,6 +59,25 @@ func (b *Bus) Publish(event Event) {
 		b.metrics.IncEventBusPublish()
 	}
 
+	if b.redis != nil {
+		b.redis.Publish(context.Background(), event)
+	}
+
+	b.dispatchLocal(handlers, event)
+}
+
+// DispatchLocal invokes local handlers for an event that originated on
+// another instance (received via Redis Streams). Does not re-publish.
+func (b *Bus) DispatchLocal(event Event) {
+	b.mu.RLock()
+	handlers := b.handlers[event.Type]
+	b.mu.RUnlock()
+	b.dispatchLocal(handlers, event)
+}
+
+// dispatchLocal invokes handlers synchronously without re-publishing to Redis.
+// Used by the Redis consumer to deliver events from other instances.
+func (b *Bus) dispatchLocal(handlers []Handler, event Event) {
 	if len(handlers) == 0 {
 		return
 	}

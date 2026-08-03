@@ -38,7 +38,8 @@ type MQTTConfig struct {
 }
 
 type RedisConfig struct {
-	URL string
+	URL           string
+	EnableEvents  bool
 }
 
 type AIConfig struct {
@@ -67,7 +68,7 @@ func Load() (*Config, error) {
 			AdminUsername: k.String("mqtt__admin__username"),
 			AdminPassword: k.String("mqtt__admin__password"),
 		},
-		Redis: RedisConfig{URL: k.String("redis__url")},
+		Redis: RedisConfig{URL: k.String("redis__url"), EnableEvents: k.Bool("redis__enable__events")},
 		AI:    AIConfig{URL: k.String("ai__url")},
 		Auth:  AuthConfig{JWTSecret: k.String("auth__jwt__secret")},
 	}
