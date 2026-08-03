@@ -128,10 +128,40 @@ services:
     profiles:
       - sim
 
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: infra-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./deployments/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - infra-net
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: infra-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: infra123
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./deployments/monitoring/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+      - ./deployments/monitoring/grafana-dashboard-provider.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./deployments/monitoring/grafana-dashboard.json:/var/lib/grafana/dashboards/inframind.json:ro
+    depends_on:
+      - prometheus
+    networks:
+      - infra-net
+
 networks:
   infra-net:
     driver: bridge
 
 volumes:
   pgdata:
+  grafana-data:
   emqx-data:
