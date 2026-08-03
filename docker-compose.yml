@@ -74,6 +74,7 @@ services:
       INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"
       INFRA_MQTT_ADMIN_PASSWORD: "mqtt_admin_secret"
       INFRA_AUTH_JWT_SECRET: "infra-dev-secret-do-not-use-in-prod"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "jaeger:4317"
     depends_on:
       emqx:
         condition: service_healthy
@@ -137,6 +138,18 @@ services:
       - "9090:9090"
     volumes:
       - ./deployments/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    networks:
+      - infra-net
+
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    container_name: infra-jaeger
+    ports:
+      - "16686:16686"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
     networks:
       - infra-net
 

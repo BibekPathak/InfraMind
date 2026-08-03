@@ -7,14 +7,19 @@ import (
 	"log/slog"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Event struct {
-	ID        string          `json:"id"`
-	Type      string          `json:"type"`
-	Source    string          `json:"source"`
-	Timestamp time.Time       `json:"timestamp"`
-	Data      json.RawMessage `json:"data"`
+	ID            string          `json:"id"`
+	Type          string          `json:"type"`
+	Source        string          `json:"source"`
+	Timestamp     time.Time       `json:"timestamp"`
+	CorrelationID string          `json:"correlation_id,omitempty"`
+	Data          json.RawMessage `json:"data"`
 }
 
 type Handler func(Event)
@@ -89,6 +94,12 @@ func (b *Bus) dispatchLocal(handlers []Handler, event Event) {
 					slog.Error("event handler panic", "type", event.Type, "recover", r)
 				}
 			}()
+
+			_, span := otel.Tracer("eventbus").Start(context.Background(), "event."+event.Type,
+				trace.WithAttributes(attribute.String("event.type", event.Type)),
+			)
+			defer span.End()
+
 			h(event)
 		}(h)
 	}
