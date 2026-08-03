@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 	"github.com/inframind/backend/internal/action"
 	"github.com/inframind/backend/internal/alert"
 	"github.com/inframind/backend/internal/asset"
@@ -26,6 +27,7 @@ import (
 	"github.com/inframind/backend/internal/eventbus"
 	"github.com/inframind/backend/internal/health"
 	"github.com/inframind/backend/internal/metrics"
+	apimw "github.com/inframind/backend/internal/middleware"
 	"github.com/inframind/backend/internal/mqtt"
 	"github.com/inframind/backend/internal/organization"
 	"github.com/inframind/backend/internal/otel"
@@ -44,6 +46,11 @@ func main() {
 	slog.SetDefault(slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
 		Level: slog.LevelInfo,
 	})))
+
+	if cfg.AppEnv != "development" && cfg.Auth.JWTSecret == "infra-dev-secret-do-not-use-in-prod" {
+		slog.Error("refusing to start: default JWT secret in non-development environment; set INFRA_AUTH_JWT_SECRET")
+		os.Exit(1)
+	}
 
 	// OpenTelemetry tracing (no-op when no collector configured)
 	shutdownTracing, err := otel.Setup("infra-backend")
@@ -165,6 +172,14 @@ func main() {
 	r.Use(middleware.Timeout(30 * time.Second))
 	r.Use(m.Middleware)
 	r.Use(auth.Middleware)
+	r.Use(apimw.MaxBody(1 << 20))
+	rl := apimw.NewRateLimiter(120, time.Minute)
+	if redisClient, err := redis.ParseURL(cfg.Redis.URL); err == nil {
+		rl.SetRedis(redis.NewClient(redisClient))
+	} else {
+		slog.Warn("rate limiter using in-memory backend", "error", err)
+	}
+	r.Use(rl.Middleware)
 	r.Use(cors.Handler(cors.Options{
 		AllowedOrigins:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
@@ -234,8 +249,18 @@ func main() {
 	}
 
 	go func() {
-		slog.Info("server starting", "port", cfg.Server.Port)
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		slog.Info("server starting", "port", cfg.Server.Port, "tls", cfg.Server.TLSEnabled)
+		var err error
+		if cfg.Server.TLSEnabled {
+			if cfg.Server.TLSCert == "" || cfg.Server.TLSKey == "" {
+				slog.Error("tls enabled but cert/key not configured")
+				os.Exit(1)
+			}
+			err = srv.ListenAndServeTLS(cfg.Server.TLSCert, cfg.Server.TLSKey)
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			slog.Error("server error", "error", err)
 			os.Exit(1)
 		}

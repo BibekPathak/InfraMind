@@ -10,6 +10,7 @@ import (
 )
 
 type Config struct {
+	AppEnv string
 	Server ServerConfig
 	DB     DBConfig
 	MQTT   MQTTConfig
@@ -23,7 +24,10 @@ type AuthConfig struct {
 }
 
 type ServerConfig struct {
-	Port int
+	Port       int
+	TLSEnabled bool
+	TLSCert    string
+	TLSKey     string
 }
 
 type DBConfig struct {
@@ -60,8 +64,14 @@ func Load() (*Config, error) {
 	}
 
 	cfg := &Config{
-		Server: ServerConfig{Port: k.Int("server__port")},
-		DB:     DBConfig{URL: k.String("db__url")},
+		AppEnv: k.String("app__env"),
+		Server: ServerConfig{
+			Port:       k.Int("server__port"),
+			TLSEnabled: k.Bool("server__tls__enabled"),
+			TLSCert:    k.String("server__tls__cert"),
+			TLSKey:     k.String("server__tls__key"),
+		},
+		DB: DBConfig{URL: k.String("db__url")},
 		MQTT: MQTTConfig{
 			URL:          k.String("mqtt__url"),
 			APIURL:       k.String("mqtt__api__url"),
@@ -99,6 +109,9 @@ func Load() (*Config, error) {
 	}
 	if cfg.Auth.JWTSecret == "" {
 		cfg.Auth.JWTSecret = "infra-dev-secret-do-not-use-in-prod"
+	}
+	if cfg.AppEnv == "" {
+		cfg.AppEnv = "development"
 	}
 
 	return cfg, nil

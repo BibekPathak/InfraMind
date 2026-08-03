@@ -63,6 +63,7 @@ services:
     ports:
       - "8080:8080"
     environment:
+      INFRA_APP_ENV: "development"
       INFRA_SERVER_PORT: "8080"
       INFRA_DB_URL: "postgres://infra:infra@timescaledb:5432/inframind?sslmode=disable"
       INFRA_MQTT_URL: "mqtt://emqx:1883"
