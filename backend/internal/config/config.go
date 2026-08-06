@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/knadh/koanf/parsers/toml"
@@ -68,7 +69,8 @@ func Load() (*Config, error) {
 	}
 
 	if err := k.Load(env.Provider("INFRA_", "__", func(s string) string {
-		return s
+		s = strings.TrimPrefix(s, "INFRA_")
+		return strings.ReplaceAll(strings.ToLower(s), "_", "__")
 	}), nil); err != nil {
 		return nil, fmt.Errorf("load env: %w", err)
 	}

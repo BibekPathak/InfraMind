@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/inframind/backend/internal/tenant"
 	"github.com/inframind/backend/pkg/uuidv7"
 )
 
@@ -21,12 +22,13 @@ func (s *Service) Record(ctx context.Context, action, resourceType, resourceID, 
 	}
 
 	e := &LogEntry{
-		ID:           uuidv7.New(),
-		UserID:       userID,
-		Action:       action,
-		ResourceType: resourceType,
-		ResourceID:   resourceID,
-		Details:      details,
+		ID:             uuidv7.New(),
+		OrganizationID: tenant.EffectiveOrgID(ctx),
+		UserID:         userID,
+		Action:         action,
+		ResourceType:   resourceType,
+		ResourceID:     resourceID,
+		Details:        details,
 	}
 
 	if err := s.repo.Insert(ctx, e); err != nil {

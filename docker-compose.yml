@@ -9,12 +9,12 @@ services:
     environment:
       EMQX_DASHBOARD__DEFAULT_PASSWORD: infra123
       EMQX_AUTH__BUILTIN__TYPE: internal
-      EMQX_AUTH__BUILTIN__ADMIN_USERNAME: mqtt_admin
-      EMQX_AUTH__BUILTIN__ADMIN_PASSWORD: mqtt_admin_secret
+      EMQX_AUTH__BUILTIN__BOOTSTRAP_USERS_FILE: /opt/emqx/etc/users.bootstrap
       EMQX_AUTHORIZATION__SOURCES__1__TYPE: built_in_database
       EMQX_AUTHORIZATION__NO_MATCH: deny
     volumes:
       - emqx-data:/opt/emqx/data
+      - ./deployments/emqx/users.bootstrap:/opt/emqx/etc/users.bootstrap:ro
     networks:
       - infra-net
     healthcheck:
