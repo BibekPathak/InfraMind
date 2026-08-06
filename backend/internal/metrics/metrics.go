@@ -11,6 +11,7 @@ import (
 // Metrics holds the Prometheus collectors. Constructed once in main and
 // injected into components — no global state.
 type Metrics struct {
+	reg *prometheus.Registry
 	HTTPRequests   *prometheus.CounterVec
 	HTTPDuration   *prometheus.HistogramVec
 	TelemetryIn    prometheus.Counter
@@ -23,6 +24,7 @@ type Metrics struct {
 
 func New(reg *prometheus.Registry) *Metrics {
 	m := &Metrics{
+		reg: reg,
 		HTTPRequests: prometheus.NewCounterVec(
 			prometheus.CounterOpts{
 				Name: "infra_http_requests_total",
@@ -85,7 +87,7 @@ func New(reg *prometheus.Registry) *Metrics {
 }
 
 func (m *Metrics) Handler() http.Handler {
-	return promhttp.Handler()
+	return promhttp.HandlerFor(m.reg, promhttp.HandlerOpts{})
 }
 
 func (m *Metrics) ObserveHTTP(method, path string, status int, dur time.Duration) {

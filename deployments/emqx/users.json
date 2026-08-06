@@ -1,0 +1,3 @@
+[
+  {"user_id":"mqtt_admin","password":"mqtt_admin_secret","is_superuser":true}
+]

@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -29,6 +30,7 @@ type Ingester struct {
 	hub       *WSHub
 	validator *Validator
 	metrics   IngesterMetrics
+	ctx       context.Context
 
 	mu          sync.Mutex
 	batch       []Telemetry
@@ -38,6 +40,10 @@ type Ingester struct {
 }
 
 func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hub *WSHub, metrics IngesterMetrics) *Ingester {
+	return NewIngesterWithContext(context.Background(), repo, devSvc, bus, hub, metrics)
+}
+
+func NewIngesterWithContext(ctx context.Context, repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hub *WSHub, metrics IngesterMetrics) *Ingester {
 	ing := &Ingester{
 		repo:      repo,
 		devSvc:    devSvc,
@@ -45,6 +51,7 @@ func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hu
 		hub:       hub,
 		validator: NewValidator(),
 		metrics:   metrics,
+		ctx:       ctx,
 		batch:     make([]Telemetry, 0, batchSize),
 		batchTicker: time.NewTicker(batchTimeout),
 		flushCh:   make(chan struct{}),
@@ -79,10 +86,10 @@ func (ing *Ingester) flush() {
 	ing.batch = make([]Telemetry, 0, batchSize)
 	ing.mu.Unlock()
 
-	if err := ing.repo.BatchInsert(nil, batch); err != nil {
+	if err := ing.repo.BatchInsert(ing.ctx, batch); err != nil {
 		slog.Error("batch insert failed", "error", err, "count", len(batch))
 		for _, t := range batch {
-			if err := ing.repo.Insert(nil, &t); err != nil {
+			if err := ing.repo.Insert(ing.ctx, &t); err != nil {
 				slog.Error("fallback insert failed", "error", err, "deviceId", t.DeviceID)
 			}
 		}
@@ -147,7 +154,7 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 		ing.metrics.IncTelemetryIngested()
 	}
 
-	if err := ing.devSvc.HandleHeartbeat(nil, p.DeviceID); err != nil {
+	if err := ing.devSvc.HandleHeartbeat(ing.ctx, p.DeviceID); err != nil {
 		slog.Warn("failed to update device heartbeat", "error", err, "deviceId", p.DeviceID)
 	}
 
@@ -172,7 +179,7 @@ func (ing *Ingester) HandleMQTTMessage(topic string, payload []byte) {
 }
 
 func (ing *Ingester) IngestTelemetry(t *Telemetry) error {
-	if err := ing.repo.Insert(nil, t); err != nil {
+	if err := ing.repo.Insert(ing.ctx, t); err != nil {
 		return fmt.Errorf("ingest telemetry: %w", err)
 	}
 	ing.bus.Publish(eventbus.NewEvent("telemetry.ingested", "backend", t))

@@ -1,0 +1,33 @@
+name: overload
+description: Transformer slowly overloaded - current and temperature ramp up
+deviceId: ""
+telemetry:
+  intervalMs: 200
+  steps:
+    - temperature: 70
+      current: 110
+      voltage: 11400
+      humidity: 45
+      repeats: 8
+    - temperature: 76
+      current: 130
+      voltage: 11400
+      humidity: 45
+      repeats: 8
+    - temperature: 82
+      current: 150
+      voltage: 11400
+      humidity: 45
+      repeats: 8
+    - temperature: 90
+      current: 175
+      voltage: 11400
+      humidity: 45
+      repeats: 10
+expect:
+  healthScore:
+    min: 40
+  alerts:
+    min: 1
+  workOrders:
+    min: 1

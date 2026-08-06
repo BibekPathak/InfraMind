@@ -1,0 +1,19 @@
+name: healthy
+description: Transformer operating within normal ranges
+deviceId: ""
+telemetry:
+  intervalMs: 200
+  steps:
+    - temperature: 65
+      current: 100
+      voltage: 11400
+      humidity: 45
+      repeats: 15
+expect:
+  healthScore:
+    min: 85
+    level: healthy
+  alerts:
+    max: 0
+  workOrders:
+    max: 0

@@ -131,16 +131,17 @@ func (h *Harness) startContainers() error {
 		ContainerRequest: tc.ContainerRequest{
 			Image: "emqx/emqx:latest",
 			Env: map[string]string{
-				"EMQX_DASHBOARD__DEFAULT_PASSWORD": "infra123",
-				"EMQX_AUTH__BUILTIN__TYPE":         "internal",
-				"EMQX_AUTH__BUILTIN__BOOTSTRAP_USERS_FILE": "/opt/emqx/etc/users.bootstrap",
-				"EMQX_AUTHORIZATION__SOURCES__1__TYPE":      "built_in_database",
-				"EMQX_AUTHORIZATION__NO_MATCH":              "deny",
+				"EMQX_DASHBOARD__DEFAULT_PASSWORD":             "infra123",
+				"EMQX_AUTHENTICATION__1__MECHANISM":            "password_based",
+				"EMQX_AUTHENTICATION__1__BACKEND":              "built_in_database",
+				"EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE":       "/opt/emqx/etc/users.json",
+				"EMQX_AUTHORIZATION__SOURCES__1__TYPE":         "built_in_database",
+				"EMQX_AUTHORIZATION__NO_MATCH":                 "deny",
 			},
 			ExposedPorts: []string{"1883/tcp"},
 			WaitingFor:   wait.ForListeningPort("1883/tcp").WithStartupTimeout(120 * time.Second),
 			Mounts: tc.ContainerMounts{
-				tc.BindMount(filepath.Join(mustRepoRoot(), "deployments", "emqx", "users.bootstrap"), "/opt/emqx/etc/users.bootstrap"),
+				tc.BindMount(filepath.Join(mustRepoRoot(), "deployments", "emqx", "users.json"), "/opt/emqx/etc/users.json"),
 			},
 		},
 		Started: true,

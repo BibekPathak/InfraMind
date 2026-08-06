@@ -19,7 +19,6 @@ type Engine struct {
 	notifier Notifier
 	telemetryRepo *telemetry.Repository
 	metrics   EngineMetrics
-	deviceIDs []string
 	interval  time.Duration
 }
 
@@ -62,9 +61,13 @@ func (e *Engine) Start(ctx context.Context) {
 }
 
 func (e *Engine) evaluate(ctx context.Context) {
-	ids := e.deviceIDs
+	ids, err := e.telemetryRepo.DistinctRecentDeviceIDs(ctx)
+	if err != nil {
+		slog.Warn("alert engine: failed to list devices", "error", err)
+		return
+	}
 	if len(ids) == 0 {
-		ids = []string{"tx-001"}
+		return
 	}
 
 	for _, deviceID := range ids {

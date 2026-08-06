@@ -90,11 +90,14 @@ func (c *APIClient) do(method, path string, body []byte, token string) (*http.Re
 	return c.hc.Do(req)
 }
 
-// MQTTPub publishes a raw JSON payload to a topic with QoS 1.
+// MQTTPub publishes a raw JSON payload to a topic with QoS 1 using the admin
+// credentials (EMQX deny-by-default ACL would reject anonymous publishers).
 func (h *Harness) MQTTPub(topic string, payload []byte) error {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(h.cfg.MQTTURL)
 	opts.SetClientID(fmt.Sprintf("harness-%d", time.Now().UnixNano()))
+	opts.SetUsername("mqtt_admin")
+	opts.SetPassword("mqtt_admin_secret")
 	opts.SetConnectTimeout(5 * time.Second)
 	client := mqtt.NewClient(opts)
 	tok := client.Connect()

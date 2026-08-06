@@ -97,6 +97,28 @@ func (r *Repository) GetLatest(ctx context.Context, deviceID string) (*Telemetry
 	return t, nil
 }
 
+// DistinctRecentDeviceIDs returns device IDs with telemetry in the last 15 minutes.
+func (r *Repository) DistinctRecentDeviceIDs(ctx context.Context) ([]string, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT DISTINCT device_id FROM telemetry
+		 WHERE time > NOW() - INTERVAL '15 minutes'
+		 ORDER BY device_id`)
+	if err != nil {
+		return nil, fmt.Errorf("distinct recent device ids: %w", err)
+	}
+	defer rows.Close()
+
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan device id: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
 func (r *Repository) QueryLatest(ctx context.Context, deviceID string, n int) ([]Telemetry, error) {
 	if n <= 0 || n > 100 {
 		n = 10
