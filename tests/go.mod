@@ -4,10 +4,12 @@ go 1.25.7
 
 require (
 	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.10.0
 	github.com/pressly/goose/v3 v3.27.3
 	github.com/testcontainers/testcontainers-go v0.43.0
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -69,5 +71,4 @@ require (
 	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.47.0 // indirect
 	golang.org/x/text v0.40.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

@@ -86,33 +86,21 @@ func Seed(h *harness.Harness, api *harness.APIClient) (*Environment, error) {
 	}, nil
 }
 
-// CreateOrgAndAsset creates a second, isolated org + asset (for tenant
-// isolation tests). Returns the new org's admin client.
-func CreateOrgAndAsset(h *harness.Harness, admin *harness.APIClient, name string) (*Environment, error) {
+// CreateOrg creates a second, isolated org (for tenant isolation tests).
+// Returns the new org's ID. Assets within the org must be created using a
+// token scoped to that org.
+func CreateOrg(h *harness.Harness, admin *harness.APIClient, name string) (string, error) {
 	var org struct {
 		ID string `json:"id"`
 	}
 	code, err := admin.Do("POST", "/api/v1/organizations", map[string]any{"name": name}, &org)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 	if code != 201 {
-		return nil, fmt.Errorf("create org: status %d", code)
+		return "", fmt.Errorf("create org: status %d", code)
 	}
-
-	var asset Asset
-	code, err = admin.Do("POST", "/api/v1/assets", map[string]any{
-		"name": name + " Transformer",
-		"type": "transformer",
-	}, &asset)
-	if err != nil {
-		return nil, err
-	}
-	if code != 201 {
-		return nil, fmt.Errorf("create asset: status %d", code)
-	}
-
-	return &Environment{OrgID: org.ID, AssetID: asset.ID, Client: admin}, nil
+	return org.ID, nil
 }
 
 // MustJSON is a test helper to marshal a struct for MQTT payloads.

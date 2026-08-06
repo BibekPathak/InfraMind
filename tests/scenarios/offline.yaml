@@ -1,0 +1,16 @@
+name: offline
+description: Device stops publishing - heartbeat timeout marks it offline and raises alert
+deviceId: ""
+telemetry:
+  intervalMs: 500
+  steps:
+    - temperature: 60
+      current: 90
+      voltage: 11400
+      humidity: 45
+      repeats: 5
+expect:
+  alerts:
+    min: 1
+  workOrders:
+    min: 1

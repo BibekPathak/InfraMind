@@ -8,9 +8,37 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/gorilla/websocket"
 )
+
+// TestJWTSecret matches the backend dev secret.
+const TestJWTSecret = "infra-dev-secret-do-not-use-in-prod"
+
+type testClaims struct {
+	UserID         string `json:"user_id"`
+	Role           string `json:"role"`
+	OrganizationID string `json:"organization_id"`
+	jwt.RegisteredClaims
+}
+
+// MintToken creates a signed JWT for a given org (matches the backend's
+// HMAC signing scheme) so tests can simulate users in different tenants.
+func MintToken(userID, role, orgID string) (string, error) {
+	claims := testClaims{
+		UserID:         userID,
+		Role:           role,
+		OrganizationID: orgID,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    "inframind",
+		},
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString([]byte(TestJWTSecret))
+}
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 

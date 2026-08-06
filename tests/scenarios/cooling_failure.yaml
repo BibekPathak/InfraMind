@@ -1,0 +1,33 @@
+name: cooling_failure
+description: Transformer cooling failure - temperature spikes while current stays normal
+deviceId: ""
+telemetry:
+  intervalMs: 150
+  steps:
+    - temperature: 72
+      current: 105
+      voltage: 11400
+      humidity: 45
+      repeats: 6
+    - temperature: 85
+      current: 105
+      voltage: 11400
+      humidity: 45
+      repeats: 6
+    - temperature: 92
+      current: 105
+      voltage: 11400
+      humidity: 45
+      repeats: 6
+    - temperature: 98
+      current: 105
+      voltage: 11400
+      humidity: 45
+      repeats: 8
+expect:
+  healthScore:
+    min: 30
+  alerts:
+    min: 1
+  workOrders:
+    min: 1
