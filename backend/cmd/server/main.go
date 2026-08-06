@@ -129,11 +129,11 @@ func main() {
 
 	twinRepo := twin.NewRepository(pool)
 	twinSvc := twin.NewService(twinRepo, assetSvc, deviceSvc, telemetryRepo, healthSvc)
-	twinSync := twin.NewSyncEngine(twinSvc, bus, wsHub)
+	twinSync := twin.NewSyncEngineWithInterval(twinSvc, bus, wsHub, cfg.Timing.TwinSyncInterval)
 
 	// Notifier + Alert engine
 	notifier := alert.NewLogNotifier()
-	alertEngine := alert.NewEngine(alertSvc, bus, notifier, telemetryRepo, m)
+	alertEngine := alert.NewEngineWithInterval(alertSvc, bus, notifier, telemetryRepo, m, cfg.Timing.AlertInterval)
 
 	// Telemetry ingester (wired to MQTT)
 	ingester := telemetry.NewIngester(telemetryRepo, deviceSvc, bus, wsHub, m)
@@ -153,10 +153,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	actionExec := action.NewExecutor(actionSvc, bus, mqttSub, action.NewPolicyEvaluator(assetSvc), m)
+	actionExec := action.NewExecutorWithInterval(actionSvc, bus, mqttSub, action.NewPolicyEvaluator(assetSvc), m, cfg.Timing.ActionInterval)
 	go actionExec.Run(ctx)
 
-	heartbeatMon := device.NewHeartbeatMonitor(pool, bus)
+	heartbeatMon := device.NewHeartbeatMonitorWithInterval(pool, bus, cfg.Timing.HeartbeatInterval, cfg.Timing.DeviceTimeout)
 	go heartbeatMon.Start(ctx)
 
 	go alertEngine.Start(ctx)

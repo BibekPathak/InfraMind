@@ -9,21 +9,26 @@ import (
 	"github.com/inframind/backend/internal/telemetry"
 )
 
-const syncInterval = 30 * time.Second
+const defaultSyncInterval = 30 * time.Second
 
 type SyncEngine struct {
 	svc   *Service
 	bus   *eventbus.Bus
 	wsHub *telemetry.WSHub
+	interval time.Duration
 }
 
 func NewSyncEngine(svc *Service, bus *eventbus.Bus, wsHub *telemetry.WSHub) *SyncEngine {
-	return &SyncEngine{svc: svc, bus: bus, wsHub: wsHub}
+	return NewSyncEngineWithInterval(svc, bus, wsHub, defaultSyncInterval)
+}
+
+func NewSyncEngineWithInterval(svc *Service, bus *eventbus.Bus, wsHub *telemetry.WSHub, interval time.Duration) *SyncEngine {
+	return &SyncEngine{svc: svc, bus: bus, wsHub: wsHub, interval: interval}
 }
 
 func (e *SyncEngine) Start(ctx context.Context) {
-	slog.Info("twin sync engine started", "interval", syncInterval)
-	ticker := time.NewTicker(syncInterval)
+	slog.Info("twin sync engine started", "interval", e.interval)
+	ticker := time.NewTicker(e.interval)
 	defer ticker.Stop()
 
 	for {

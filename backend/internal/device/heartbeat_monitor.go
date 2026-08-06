@@ -26,6 +26,15 @@ func NewHeartbeatMonitor(pool *pgxpool.Pool, bus *eventbus.Bus) *HeartbeatMonito
 	}
 }
 
+func NewHeartbeatMonitorWithInterval(pool *pgxpool.Pool, bus *eventbus.Bus, interval, timeout time.Duration) *HeartbeatMonitor {
+	return &HeartbeatMonitor{
+		pool:     pool,
+		bus:      bus,
+		interval: interval,
+		timeout:  timeout,
+	}
+}
+
 func (m *HeartbeatMonitor) Start(ctx context.Context) {
 	slog.Info("heartbeat monitor started", "interval", m.interval, "timeout", m.timeout)
 	ticker := time.NewTicker(m.interval)

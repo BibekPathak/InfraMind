@@ -24,15 +24,20 @@ type Executor struct {
 	pub     Publisher
 	policy  *PolicyEvaluator
 	metrics ExecutorMetrics
+	interval time.Duration
 }
 
 func NewExecutor(svc *Service, bus *eventbus.Bus, pub Publisher, policy *PolicyEvaluator, metrics ExecutorMetrics) *Executor {
-	return &Executor{svc: svc, bus: bus, pub: pub, policy: policy, metrics: metrics}
+	return &Executor{svc: svc, bus: bus, pub: pub, policy: policy, metrics: metrics, interval: 10 * time.Second}
+}
+
+func NewExecutorWithInterval(svc *Service, bus *eventbus.Bus, pub Publisher, policy *PolicyEvaluator, metrics ExecutorMetrics, interval time.Duration) *Executor {
+	return &Executor{svc: svc, bus: bus, pub: pub, policy: policy, metrics: metrics, interval: interval}
 }
 
 func (e *Executor) Run(ctx context.Context) {
-	slog.Info("action executor started")
-	ticker := time.NewTicker(10 * time.Second)
+	slog.Info("action executor started", "interval", e.interval)
+	ticker := time.NewTicker(e.interval)
 	defer ticker.Stop()
 
 	for {

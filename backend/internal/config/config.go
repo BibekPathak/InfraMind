@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/knadh/koanf/parsers/toml"
 	"github.com/knadh/koanf/providers/env"
@@ -17,6 +18,15 @@ type Config struct {
 	Redis  RedisConfig
 	AI     AIConfig
 	Auth   AuthConfig
+	Timing TimingConfig
+}
+
+type TimingConfig struct {
+	HeartbeatInterval time.Duration
+	DeviceTimeout     time.Duration
+	AlertInterval     time.Duration
+	TwinSyncInterval  time.Duration
+	ActionInterval    time.Duration
 }
 
 type AuthConfig struct {
@@ -81,6 +91,13 @@ func Load() (*Config, error) {
 		Redis: RedisConfig{URL: k.String("redis__url"), EnableEvents: k.Bool("redis__enable__events")},
 		AI:    AIConfig{URL: k.String("ai__url")},
 		Auth:  AuthConfig{JWTSecret: k.String("auth__jwt__secret")},
+		Timing: TimingConfig{
+			HeartbeatInterval: k.Duration("heartbeat__interval"),
+			DeviceTimeout:     k.Duration("device__timeout"),
+			AlertInterval:     k.Duration("alert__interval"),
+			TwinSyncInterval:  k.Duration("twin__sync__interval"),
+			ActionInterval:    k.Duration("action__interval"),
+		},
 	}
 
 	if cfg.Server.Port == 0 {
@@ -112,6 +129,21 @@ func Load() (*Config, error) {
 	}
 	if cfg.AppEnv == "" {
 		cfg.AppEnv = "development"
+	}
+	if cfg.Timing.HeartbeatInterval <= 0 {
+		cfg.Timing.HeartbeatInterval = 60 * time.Second
+	}
+	if cfg.Timing.DeviceTimeout <= 0 {
+		cfg.Timing.DeviceTimeout = 2 * time.Minute
+	}
+	if cfg.Timing.AlertInterval <= 0 {
+		cfg.Timing.AlertInterval = 10 * time.Second
+	}
+	if cfg.Timing.TwinSyncInterval <= 0 {
+		cfg.Timing.TwinSyncInterval = 30 * time.Second
+	}
+	if cfg.Timing.ActionInterval <= 0 {
+		cfg.Timing.ActionInterval = 10 * time.Second
 	}
 
 	return cfg, nil

@@ -74,6 +74,11 @@ services:
       INFRA_MQTT_ADMIN_USERNAME: "mqtt_admin"
       INFRA_MQTT_ADMIN_PASSWORD: "mqtt_admin_secret"
       INFRA_AUTH_JWT_SECRET: "infra-dev-secret-do-not-use-in-prod"
+      INFRA_HEARTBEAT_INTERVAL: "60s"
+      INFRA_DEVICE_TIMEOUT: "2m"
+      INFRA_ALERT_INTERVAL: "10s"
+      INFRA_TWIN_SYNC_INTERVAL: "30s"
+      INFRA_ACTION_INTERVAL: "10s"
       OTEL_EXPORTER_OTLP_ENDPOINT: "jaeger:4317"
     depends_on:
       emqx:

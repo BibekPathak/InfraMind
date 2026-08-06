@@ -34,6 +34,17 @@ func NewEngine(alertSvc *Service, bus *eventbus.Bus, notifier Notifier, telemetr
 	}
 }
 
+func NewEngineWithInterval(alertSvc *Service, bus *eventbus.Bus, notifier Notifier, telemetryRepo *telemetry.Repository, metrics EngineMetrics, interval time.Duration) *Engine {
+	return &Engine{
+		alertSvc:      alertSvc,
+		bus:           bus,
+		notifier:      notifier,
+		telemetryRepo: telemetryRepo,
+		metrics:       metrics,
+		interval:      interval,
+	}
+}
+
 func (e *Engine) Start(ctx context.Context) {
 	slog.Info("alert engine started", "interval", e.interval)
 	ticker := time.NewTicker(e.interval)
