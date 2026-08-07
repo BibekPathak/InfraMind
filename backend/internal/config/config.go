@@ -39,6 +39,7 @@ type ServerConfig struct {
 	TLSEnabled bool
 	TLSCert    string
 	TLSKey     string
+	RateLimit  int
 }
 
 type DBConfig struct {
@@ -82,6 +83,7 @@ func Load() (*Config, error) {
 			TLSEnabled: k.Bool("server__tls__enabled"),
 			TLSCert:    k.String("server__tls__cert"),
 			TLSKey:     k.String("server__tls__key"),
+			RateLimit:  k.Int("server__rate__limit"),
 		},
 		DB: DBConfig{URL: k.String("db__url")},
 		MQTT: MQTTConfig{
@@ -104,6 +106,9 @@ func Load() (*Config, error) {
 
 	if cfg.Server.Port == 0 {
 		cfg.Server.Port = 8080
+	}
+	if cfg.Server.RateLimit <= 0 {
+		cfg.Server.RateLimit = 120
 	}
 	if cfg.DB.URL == "" {
 		cfg.DB.URL = "postgres://infra:infra@localhost:5432/inframind?sslmode=disable"

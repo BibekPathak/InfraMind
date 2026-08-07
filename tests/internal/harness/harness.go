@@ -267,6 +267,7 @@ func (h *Harness) startBackend() error {
 	env := []string{
 		"INFRA_APP_ENV=development",
 		"INFRA_SERVER_PORT=" + port,
+		"INFRA_SERVER_RATE_LIMIT=100000",
 		"INFRA_DB_URL=" + h.cfg.DBURL,
 		"INFRA_MQTT_URL=" + h.cfg.MQTTURL,
 		"INFRA_MQTT_API_URL=http://localhost:18083",
@@ -382,6 +383,7 @@ func (h *Harness) RestartBackend() error {
 	env := []string{
 		"INFRA_APP_ENV=development",
 		"INFRA_SERVER_PORT=" + port,
+		"INFRA_SERVER_RATE_LIMIT=100000",
 		"INFRA_DB_URL=" + h.cfg.DBURL,
 		"INFRA_MQTT_URL=" + h.cfg.MQTTURL,
 		"INFRA_MQTT_API_URL=http://localhost:18083",

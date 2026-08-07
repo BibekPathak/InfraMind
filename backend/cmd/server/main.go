@@ -175,7 +175,7 @@ func main() {
 	r.Use(m.Middleware)
 	r.Use(auth.Middleware)
 	r.Use(apimw.MaxBody(1 << 20))
-	rl := apimw.NewRateLimiter(120, time.Minute)
+	rl := apimw.NewRateLimiter(cfg.Server.RateLimit, time.Minute)
 	if redisClient, err := redis.ParseURL(cfg.Redis.URL); err == nil {
 		rl.SetRedis(redis.NewClient(redisClient))
 	} else {
