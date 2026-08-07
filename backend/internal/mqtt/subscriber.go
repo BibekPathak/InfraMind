@@ -3,6 +3,7 @@ package mqtt
 import (
 	"fmt"
 	"log/slog"
+	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 )
@@ -20,6 +21,9 @@ func NewSubscriber(url, username, password string, onMsg func(topic string, payl
 	opts.SetPassword(password)
 	opts.SetCleanSession(true)
 	opts.SetAutoReconnect(true)
+	opts.SetConnectRetry(true)
+	opts.SetConnectRetryInterval(2 * time.Second)
+	opts.SetMaxReconnectInterval(10 * time.Second)
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
 		slog.Info("mqtt connected", "broker", url, "username", username)
 	})

@@ -8,8 +8,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/gorilla/websocket"
 )
 
@@ -144,7 +144,7 @@ func (h *Harness) MQTTPub(topic string, payload []byte) error {
 }
 
 // mqttAdminConnectOK checks whether EMQX accepts the admin MQTT connection.
-func mqttAdminConnectOK(brokerURL string) bool {
+func MQTTAdminConnectOK(brokerURL string) bool {
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker(brokerURL)
 	opts.SetClientID(fmt.Sprintf("harness-probe-%d", time.Now().UnixNano()))

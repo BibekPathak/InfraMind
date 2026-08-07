@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -35,18 +36,19 @@ type Config struct {
 // Harness bootstraps a full running stack: real containers (TimescaleDB,
 // EMQX, Redis) plus the real backend binary and real AI service.
 type Harness struct {
-	t        *testing.T
-	ctx      context.Context
-	cancel   context.CancelFunc
-	cfg      *Config
+	t          *testing.T
+	ctx        context.Context
+	cancel     context.CancelFunc
+	cfg        *Config
 	containers []tc.Container
-	backend  *exec.Cmd
-	ai       *exec.Cmd
-	pool     *pgxpool.Pool
-	buildOnce sync.Once
-	builtBin  string
-	buildErr  error
-	mu       sync.Mutex
+	byName     map[string]tc.Container
+	backend    *exec.Cmd
+	ai         *exec.Cmd
+	pool       *pgxpool.Pool
+	buildOnce  sync.Once
+	builtBin   string
+	buildErr   error
+	mu         sync.Mutex
 }
 
 var (
@@ -73,7 +75,7 @@ func CloseGlobal() {
 
 func New(t *testing.T) (*Harness, error) {
 	ctx, cancel := context.WithCancel(context.Background())
-	h := &Harness{t: t, ctx: ctx, cancel: cancel}
+	h := &Harness{t: t, ctx: ctx, cancel: cancel, byName: make(map[string]tc.Container)}
 
 	if err := h.startContainers(); err != nil {
 		h.Close()
@@ -123,6 +125,7 @@ func (h *Harness) startContainers() error {
 		return fmt.Errorf("start timescaledb: %w", err)
 	}
 	h.containers = append(h.containers, dbC)
+	h.byName["timescaledb"] = dbC
 	dbPort, _ := dbC.MappedPort(h.ctx, "5432")
 	dbHost, _ := dbC.Host(h.ctx)
 
@@ -131,12 +134,12 @@ func (h *Harness) startContainers() error {
 		ContainerRequest: tc.ContainerRequest{
 			Image: "emqx/emqx:latest",
 			Env: map[string]string{
-				"EMQX_DASHBOARD__DEFAULT_PASSWORD":             "infra123",
-				"EMQX_AUTHENTICATION__1__MECHANISM":            "password_based",
-				"EMQX_AUTHENTICATION__1__BACKEND":              "built_in_database",
-				"EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE":       "/opt/emqx/etc/users.json",
-				"EMQX_AUTHORIZATION__SOURCES__1__TYPE":         "built_in_database",
-				"EMQX_AUTHORIZATION__NO_MATCH":                 "deny",
+				"EMQX_DASHBOARD__DEFAULT_PASSWORD":       "infra123",
+				"EMQX_AUTHENTICATION__1__MECHANISM":      "password_based",
+				"EMQX_AUTHENTICATION__1__BACKEND":        "built_in_database",
+				"EMQX_AUTHENTICATION__1__BOOTSTRAP_FILE": "/opt/emqx/etc/users.json",
+				"EMQX_AUTHORIZATION__SOURCES__1__TYPE":   "built_in_database",
+				"EMQX_AUTHORIZATION__NO_MATCH":           "deny",
 			},
 			ExposedPorts: []string{"1883/tcp"},
 			WaitingFor:   wait.ForListeningPort("1883/tcp").WithStartupTimeout(120 * time.Second),
@@ -150,6 +153,7 @@ func (h *Harness) startContainers() error {
 		return fmt.Errorf("start emqx: %w", err)
 	}
 	h.containers = append(h.containers, emqxC)
+	h.byName["emqx"] = emqxC
 	mqttPort, _ := emqxC.MappedPort(h.ctx, "1883")
 	mqttHost, _ := emqxC.Host(h.ctx)
 
@@ -157,7 +161,7 @@ func (h *Harness) startContainers() error {
 	// Poll with an actual admin connection before proceeding.
 	mqttURL := fmt.Sprintf("mqtt://%s:%s", mqttHost, mqttPort.Port())
 	if !WaitFor(60_000_000_000, 1_000_000_000, func() bool {
-		return mqttAdminConnectOK(mqttURL)
+		return MQTTAdminConnectOK(mqttURL)
 	}) {
 		return fmt.Errorf("emqx did not accept mqtt admin connection")
 	}
@@ -175,6 +179,7 @@ func (h *Harness) startContainers() error {
 		return fmt.Errorf("start redis: %w", err)
 	}
 	h.containers = append(h.containers, redisC)
+	h.byName["redis"] = redisC
 	redisPort, _ := redisC.MappedPort(h.ctx, "6379")
 	redisHost, _ := redisC.Host(h.ctx)
 
@@ -184,7 +189,7 @@ func (h *Harness) startContainers() error {
 		DBPort:   dbPort.Port(),
 		MQTTURL:  fmt.Sprintf("mqtt://%s:%s", mqttHost, mqttPort.Port()),
 		MQTTPort: mqttPort.Port(),
-		AIURL:    "http://localhost:19090",
+		AIURL:    "",
 		RedisURL: fmt.Sprintf("redis://%s:%s", redisHost, redisPort.Port()),
 	}
 	return nil
@@ -232,7 +237,9 @@ func (h *Harness) buildBackend() error {
 func (h *Harness) startAI() error {
 	repoRoot := mustRepoRoot()
 	aiDir := filepath.Join(repoRoot, "ai")
-	cmd := exec.Command("python", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "19090")
+	port := freePort()
+	h.cfg.AIURL = "http://localhost:" + port
+	cmd := exec.Command("python", "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", port)
 	cmd.Dir = aiDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -253,7 +260,7 @@ func (h *Harness) startAI() error {
 }
 
 func (h *Harness) startBackend() error {
-	port := "18080"
+	port := freePort()
 	h.cfg.APIPort = port
 	h.cfg.APIURL = "http://localhost:" + port
 
@@ -331,6 +338,173 @@ func (h *Harness) Config() *Config { return h.cfg }
 // Pool returns the DB pool (for direct assertions).
 func (h *Harness) Pool() *pgxpool.Pool { return h.pool }
 
+// StopContainer stops a named container (timescaledb, emqx, redis).
+func (h *Harness) StopContainer(name string) error {
+	c, ok := h.byName[name]
+	if !ok {
+		return fmt.Errorf("unknown container %q", name)
+	}
+	return c.Stop(h.ctx, nil)
+}
+
+// StartContainer starts a previously stopped named container.
+func (h *Harness) StartContainer(name string) error {
+	c, ok := h.byName[name]
+	if !ok {
+		return fmt.Errorf("unknown container %q", name)
+	}
+	return c.Start(h.ctx)
+}
+
+// RestartContainer stops and restarts a named container.
+func (h *Harness) RestartContainer(name string) error {
+	if err := h.StopContainer(name); err != nil {
+		return fmt.Errorf("stop %s: %w", name, err)
+	}
+	if err := h.StartContainer(name); err != nil {
+		return fmt.Errorf("start %s: %w", name, err)
+	}
+	return nil
+}
+
+// RestartBackend kills and restarts the backend binary subprocess, then waits
+// for its health endpoint to become ready again.
+func (h *Harness) RestartBackend() error {
+	if h.backend != nil && h.backend.Process != nil {
+		h.backend.Process.Kill()
+		h.backend.Wait()
+	}
+
+	port := freePort()
+	h.cfg.APIPort = port
+	h.cfg.APIURL = "http://localhost:" + port
+
+	env := []string{
+		"INFRA_APP_ENV=development",
+		"INFRA_SERVER_PORT=" + port,
+		"INFRA_DB_URL=" + h.cfg.DBURL,
+		"INFRA_MQTT_URL=" + h.cfg.MQTTURL,
+		"INFRA_MQTT_API_URL=http://localhost:18083",
+		"INFRA_MQTT_ADMIN_USERNAME=mqtt_admin",
+		"INFRA_MQTT_ADMIN_PASSWORD=mqtt_admin_secret",
+		"INFRA_REDIS_URL=" + h.cfg.RedisURL,
+		"INFRA_REDIS_ENABLE_EVENTS=false",
+		"INFRA_AI_URL=" + h.cfg.AIURL,
+		"INFRA_AUTH_JWT_SECRET=infra-dev-secret-do-not-use-in-prod",
+		"INFRA_HEARTBEAT_INTERVAL=2s",
+		"INFRA_DEVICE_TIMEOUT=6s",
+		"INFRA_ALERT_INTERVAL=1s",
+		"INFRA_TWIN_SYNC_INTERVAL=1s",
+		"INFRA_ACTION_INTERVAL=1s",
+	}
+	env = append(env, os.Environ()...)
+
+	cmd := exec.Command(h.builtBin)
+	cmd.Env = env
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Start(); err != nil {
+		return fmt.Errorf("restart backend: %w", err)
+	}
+	h.backend = cmd
+	h.cfg.BackendPid = cmd.Process.Pid
+
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		if resp, err := httpGet(h.cfg.APIURL + "/api/v1/health"); err == nil && resp == 200 {
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("backend did not become ready after restart")
+}
+
+// RestartAI kills and restarts the AI service subprocess.
+func (h *Harness) RestartAI() error {
+	if err := h.StopAI(); err != nil {
+		return err
+	}
+	return h.startAI()
+}
+
+// ContainerByName returns a named container and whether it exists.
+func (h *Harness) ContainerByName(name string) (tc.Container, bool) {
+	c, ok := h.byName[name]
+	return c, ok
+}
+
+// RefreshDBPort re-reads the TimescaleDB mapped port after a container restart
+// (testcontainers may reassign host ports) and updates the config + pool.
+func (h *Harness) RefreshDBPort() error {
+	c, ok := h.byName["timescaledb"]
+	if !ok {
+		return fmt.Errorf("timescaledb container not found")
+	}
+	p, err := c.MappedPort(h.ctx, "5432")
+	if err != nil {
+		return fmt.Errorf("read db port: %w", err)
+	}
+	host, _ := c.Host(h.ctx)
+	h.cfg.DBPort = p.Port()
+	h.cfg.DBHost = host
+	h.cfg.DBURL = fmt.Sprintf("postgres://infra:infra@%s:%s/inframind?sslmode=disable", host, p.Port())
+
+	// Re-establish the DB pool against the new port.
+	if h.pool != nil {
+		h.pool.Close()
+	}
+	pool, err := pgxpool.New(h.ctx, h.cfg.DBURL)
+	if err != nil {
+		return fmt.Errorf("refresh db pool: %w", err)
+	}
+	h.pool = pool
+	return nil
+}
+
+// RefreshMQTTPort re-reads the EMQX mapped port after a container restart.
+func (h *Harness) RefreshMQTTPort() error {
+	c, ok := h.byName["emqx"]
+	if !ok {
+		return fmt.Errorf("emqx container not found")
+	}
+	p, err := c.MappedPort(h.ctx, "1883")
+	if err != nil {
+		return fmt.Errorf("read mqtt port: %w", err)
+	}
+	host, _ := c.Host(h.ctx)
+	h.cfg.MQTTPort = p.Port()
+	h.cfg.MQTTURL = fmt.Sprintf("mqtt://%s:%s", host, p.Port())
+	return nil
+}
+
+// RefreshRedisPort re-reads the Redis mapped port after a container restart.
+func (h *Harness) RefreshRedisPort() error {
+	c, ok := h.byName["redis"]
+	if !ok {
+		return fmt.Errorf("redis container not found")
+	}
+	p, err := c.MappedPort(h.ctx, "6379")
+	if err != nil {
+		return fmt.Errorf("read redis port: %w", err)
+	}
+	host, _ := c.Host(h.ctx)
+	h.cfg.RedisURL = fmt.Sprintf("redis://%s:%s", host, p.Port())
+	return nil
+}
+
+// Ctx returns the harness context.
+func (h *Harness) Ctx() context.Context { return h.ctx }
+
+// StopAI kills the AI subprocess without restarting it.
+func (h *Harness) StopAI() error {
+	if h.ai != nil && h.ai.Process != nil {
+		h.ai.Process.Kill()
+		h.ai.Wait()
+		h.ai = nil
+	}
+	return nil
+}
+
 func mustRepoRoot() string {
 	wd, _ := os.Getwd()
 	for {
@@ -343,6 +517,17 @@ func mustRepoRoot() string {
 		}
 		wd = parent
 	}
+}
+
+// freePort returns a currently-free TCP port for binding local subprocesses,
+// avoiding conflicts with orphaned processes from prior runs.
+func freePort() string {
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "0"
+	}
+	defer l.Close()
+	return fmt.Sprintf("%d", l.Addr().(*net.TCPAddr).Port)
 }
 
 func httpGet(url string) (int, error) {

@@ -11,15 +11,15 @@ import (
 
 // Scenario is a golden end-to-end test definition.
 type Scenario struct {
-	Name        string         `yaml:"name"`
-	Description string         `yaml:"description"`
-	DeviceID    string         `yaml:"deviceId"`
-	Telemetry   TelemetrySpec  `yaml:"telemetry"`
-	Expect      ExpectSpec     `yaml:"expect"`
+	Name        string        `yaml:"name"`
+	Description string        `yaml:"description"`
+	DeviceID    string        `yaml:"deviceId"`
+	Telemetry   TelemetrySpec `yaml:"telemetry"`
+	Expect      ExpectSpec    `yaml:"expect"`
 }
 
 type TelemetrySpec struct {
-	IntervalMs int            `yaml:"intervalMs"`
+	IntervalMs int             `yaml:"intervalMs"`
 	Steps      []TelemetryStep `yaml:"steps"`
 }
 

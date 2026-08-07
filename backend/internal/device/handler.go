@@ -26,6 +26,7 @@ func (h *Handler) RegisterRoutes(r chi.Router) {
 	r.Post("/devices/{id}/heartbeat", h.Heartbeat)
 	r.Get("/devices/{id}/config", h.GetConfig)
 	r.Put("/devices/{id}/config", h.UpdateConfig)
+	r.Get("/assets/{id}/devices", h.ListByAsset)
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
@@ -120,4 +121,19 @@ func deviceUserID(r *http.Request) string {
 		return id
 	}
 	return "system"
+}
+
+// ListByAsset returns all devices registered under an asset.
+func (h *Handler) ListByAsset(w http.ResponseWriter, r *http.Request) {
+	assetID := chi.URLParam(r, "id")
+	devices, err := h.svc.ListByAsset(r.Context(), assetID)
+	if err != nil {
+		http.Error(w, `{"error":"not found"}`, http.StatusNotFound)
+		return
+	}
+	if devices == nil {
+		devices = []Device{}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(devices)
 }
