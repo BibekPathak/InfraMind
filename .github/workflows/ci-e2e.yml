@@ -1,0 +1,50 @@
+name: ci-e2e
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 3 * * *'  # nightly
+  workflow_dispatch:
+
+jobs:
+  integration:
+    name: Integration + system + chaos + performance
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: tests/go.sum
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install AI deps
+        working-directory: ai
+        run: pip install fastapi uvicorn pydantic
+      - name: Build backend binary
+        working-directory: backend
+        run: go build -o /tmp/infra-backend-test ./cmd/server
+      - name: Run integration scenarios
+        working-directory: tests
+        run: go test ./integration/... -timeout 1200s
+      - name: Run system workflow
+        working-directory: tests
+        run: go test ./system/... -timeout 900s
+      - name: Run chaos tests
+        working-directory: tests
+        run: go test ./chaos/... -timeout 1800s
+      - name: Run performance smoke
+        working-directory: tests
+        run: go test ./performance/... -timeout 900s
+
+  validate:
+    name: Compose + config validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose
+        run: docker compose config --quiet
+      - name: Validate OpenAPI
+        working-directory: backend
+        run: python -c "import yaml; yaml.safe_load(open('spec/openapi.yaml'))"

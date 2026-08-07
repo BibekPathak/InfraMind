@@ -12,8 +12,8 @@ import (
 )
 
 type Service struct {
-	aiURL         string
-	telemetryRepo *telemetry.Repository
+	aiURL             string
+	telemetryRepo     *telemetry.Repository
 	assetTypeResolver AssetTypeResolver
 	eventPublisher    EventPublisher
 }
@@ -66,9 +66,9 @@ type telemetryPoint struct {
 }
 
 type aiHealthResponse struct {
-	Score   float64        `json:"score"`
-	Level   string         `json:"level"`
-	Factors []aiFactor    `json:"factors"`
+	Score   float64    `json:"score"`
+	Level   string     `json:"level"`
+	Factors []aiFactor `json:"factors"`
 }
 
 type aiFactor struct {
@@ -78,12 +78,12 @@ type aiFactor struct {
 }
 
 type aiAnalysisResponse struct {
-	HealthScore   float64            `json:"health_score"`
-	HealthLevel   string             `json:"health_level"`
-	HealthFactors []aiFactor         `json:"health_factors"`
-	Anomalies     []aiAnomaly        `json:"anomalies"`
-	FailurePrediction *aiPrediction  `json:"failure_prediction"`
-	Recommendations  []aiRecommendation `json:"recommendations"`
+	HealthScore       float64            `json:"health_score"`
+	HealthLevel       string             `json:"health_level"`
+	HealthFactors     []aiFactor         `json:"health_factors"`
+	Anomalies         []aiAnomaly        `json:"anomalies"`
+	FailurePrediction *aiPrediction      `json:"failure_prediction"`
+	Recommendations   []aiRecommendation `json:"recommendations"`
 }
 
 type aiAnomaly struct {

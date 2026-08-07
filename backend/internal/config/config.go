@@ -52,15 +52,15 @@ type DBConfig struct {
 }
 
 type MQTTConfig struct {
-	URL          string
-	APIURL       string
+	URL           string
+	APIURL        string
 	AdminUsername string
 	AdminPassword string
 }
 
 type RedisConfig struct {
-	URL           string
-	EnableEvents  bool
+	URL          string
+	EnableEvents bool
 }
 
 type AIConfig struct {
@@ -92,8 +92,8 @@ func Load() (*Config, error) {
 		},
 		DB: DBConfig{URL: k.String("db__url")},
 		MQTT: MQTTConfig{
-			URL:          k.String("mqtt__url"),
-			APIURL:       k.String("mqtt__api__url"),
+			URL:           k.String("mqtt__url"),
+			APIURL:        k.String("mqtt__api__url"),
 			AdminUsername: k.String("mqtt__admin__username"),
 			AdminPassword: k.String("mqtt__admin__password"),
 		},

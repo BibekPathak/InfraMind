@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/inframind/backend/internal/tenant"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Repository struct {

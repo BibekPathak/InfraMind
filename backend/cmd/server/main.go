@@ -13,8 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/redis/go-redis/v9"
 	"github.com/inframind/backend/internal/action"
 	"github.com/inframind/backend/internal/alert"
 	"github.com/inframind/backend/internal/asset"
@@ -35,6 +33,8 @@ import (
 	"github.com/inframind/backend/internal/testing"
 	"github.com/inframind/backend/internal/twin"
 	"github.com/inframind/backend/internal/workorder"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {

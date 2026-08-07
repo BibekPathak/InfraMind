@@ -23,7 +23,7 @@ type DeviceRateLimiter struct {
 }
 
 type rateCounter struct {
-	count   int
+	count       int
 	windowStart time.Time
 }
 

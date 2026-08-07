@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/inframind/backend/internal/eventbus"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type HeartbeatMonitor struct {

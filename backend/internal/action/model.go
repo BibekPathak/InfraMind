@@ -42,9 +42,9 @@ type ProposeActionRequest struct {
 }
 
 type Filter struct {
-	AssetID  string
-	Status   string
-	Type     string
-	Page     int
-	Limit    int
+	AssetID string
+	Status  string
+	Type    string
+	Page    int
+	Limit   int
 }

@@ -11,13 +11,13 @@ import (
 // Metrics holds the Prometheus collectors. Constructed once in main and
 // injected into components — no global state.
 type Metrics struct {
-	reg *prometheus.Registry
-	HTTPRequests   *prometheus.CounterVec
-	HTTPDuration   *prometheus.HistogramVec
-	TelemetryIn    prometheus.Counter
-	TelemetryBatch prometheus.Histogram
-	MQTTMessages   prometheus.Counter
-	AlertsRaised   prometheus.Counter
+	reg             *prometheus.Registry
+	HTTPRequests    *prometheus.CounterVec
+	HTTPDuration    *prometheus.HistogramVec
+	TelemetryIn     prometheus.Counter
+	TelemetryBatch  prometheus.Histogram
+	MQTTMessages    prometheus.Counter
+	AlertsRaised    prometheus.Counter
 	ActionsExecuted prometheus.Counter
 	EventBusPublish prometheus.Counter
 }

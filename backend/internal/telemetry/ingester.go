@@ -45,17 +45,17 @@ func NewIngester(repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hu
 
 func NewIngesterWithContext(ctx context.Context, repo *Repository, devSvc *device.Service, bus *eventbus.Bus, hub *WSHub, metrics IngesterMetrics) *Ingester {
 	ing := &Ingester{
-		repo:      repo,
-		devSvc:    devSvc,
-		bus:       bus,
-		hub:       hub,
-		validator: NewValidator(),
-		metrics:   metrics,
-		ctx:       ctx,
-		batch:     make([]Telemetry, 0, batchSize),
+		repo:        repo,
+		devSvc:      devSvc,
+		bus:         bus,
+		hub:         hub,
+		validator:   NewValidator(),
+		metrics:     metrics,
+		ctx:         ctx,
+		batch:       make([]Telemetry, 0, batchSize),
 		batchTicker: time.NewTicker(batchTimeout),
-		flushCh:   make(chan struct{}),
-		doneCh:    make(chan struct{}),
+		flushCh:     make(chan struct{}),
+		doneCh:      make(chan struct{}),
 	}
 
 	go ing.batchLoop()

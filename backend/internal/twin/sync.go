@@ -12,9 +12,9 @@ import (
 const defaultSyncInterval = 30 * time.Second
 
 type SyncEngine struct {
-	svc   *Service
-	bus   *eventbus.Bus
-	wsHub *telemetry.WSHub
+	svc      *Service
+	bus      *eventbus.Bus
+	wsHub    *telemetry.WSHub
 	interval time.Duration
 }
 

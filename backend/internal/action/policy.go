@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	modeManual    = "manual"
-	modeAdvisory  = "advisory"
+	modeManual     = "manual"
+	modeAdvisory   = "advisory"
 	modeAutonomous = "autonomous"
 )
 
@@ -33,7 +33,8 @@ func NewPolicyEvaluator(assetSvc *asset.Service) *PolicyEvaluator {
 // manual     -> never auto-approve
 // advisory   -> never auto-approve (AI suggests, operator approves)
 // autonomous -> safe actions (notification, command) auto-approve;
-//              risky actions (restart, config_change) require approval
+//
+//	risky actions (restart, config_change) require approval
 func (e *PolicyEvaluator) Evaluate(ctx context.Context, a Action) (bool, string) {
 	if a.AssetID == "" {
 		return false, "no asset"

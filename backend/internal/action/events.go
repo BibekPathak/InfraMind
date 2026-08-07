@@ -67,7 +67,7 @@ func resolveAssetID(ctx context.Context, devSvc *device.Service, deviceID string
 }
 
 type RecommendationEvent struct {
-	DeviceID        string              `json:"deviceId"`
+	DeviceID        string               `json:"deviceId"`
 	Recommendations []RecommendationItem `json:"recommendations"`
 }
 

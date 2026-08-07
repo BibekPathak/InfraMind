@@ -1,0 +1,86 @@
+name: ci-fast
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend lint + build + test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+          cache-dependency-path: |
+            backend/go.sum
+            simulator/go.sum
+      - name: Format check
+        run: |
+          cd backend && test -z "$(gofmt -l .)" || (gofmt -l .; exit 1)
+          cd ../simulator && test -z "$(gofmt -l .)" || (gofmt -l .; exit 1)
+      - name: go vet
+        run: |
+          cd backend && go vet ./...
+          cd ../simulator && go vet ./...
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@latest
+      - name: staticcheck
+        run: |
+          cd backend && staticcheck ./...
+          cd ../simulator && staticcheck ./...
+      - name: Build
+        run: |
+          cd backend && go build ./...
+          cd ../simulator && go build ./...
+          cd ../deployments/loadtest && go build ./...
+      - name: Unit tests
+        run: |
+          cd backend && go test ./...
+          cd ../simulator && go test ./...
+
+  frontend:
+    name: Frontend lint + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install
+        working-directory: frontend
+        run: npm ci
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+      - name: Typecheck
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+  ai:
+    name: AI lint + typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install
+        working-directory: ai
+        run: pip install ruff mypy fastapi uvicorn pydantic
+      - name: Ruff
+        working-directory: ai
+        run: ruff check .
+      - name: Mypy
+        working-directory: ai
+        run: mypy .
+
+  compose:
+    name: Docker Compose config
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate compose
+        run: docker compose config --quiet

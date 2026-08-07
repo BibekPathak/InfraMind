@@ -14,12 +14,12 @@ type EngineMetrics interface {
 }
 
 type Engine struct {
-	alertSvc *Service
-	bus      *eventbus.Bus
-	notifier Notifier
+	alertSvc      *Service
+	bus           *eventbus.Bus
+	notifier      Notifier
 	telemetryRepo *telemetry.Repository
-	metrics   EngineMetrics
-	interval  time.Duration
+	metrics       EngineMetrics
+	interval      time.Duration
 }
 
 func NewEngine(alertSvc *Service, bus *eventbus.Bus, notifier Notifier, telemetryRepo *telemetry.Repository, metrics EngineMetrics) *Engine {

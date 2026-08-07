@@ -19,11 +19,11 @@ type ExecutorMetrics interface {
 }
 
 type Executor struct {
-	svc     *Service
-	bus     *eventbus.Bus
-	pub     Publisher
-	policy  *PolicyEvaluator
-	metrics ExecutorMetrics
+	svc      *Service
+	bus      *eventbus.Bus
+	pub      Publisher
+	policy   *PolicyEvaluator
+	metrics  ExecutorMetrics
 	interval time.Duration
 }
 

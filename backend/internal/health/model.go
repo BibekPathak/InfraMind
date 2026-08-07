@@ -17,9 +17,9 @@ type HealthFactor struct {
 }
 
 type HealthResponse struct {
-	Score     float64        `json:"score"`
-	Level     string         `json:"level"`
-	Factors   []HealthFactor `json:"factors"`
+	Score   float64        `json:"score"`
+	Level   string         `json:"level"`
+	Factors []HealthFactor `json:"factors"`
 }
 
 type AnomalyResult struct {
@@ -47,10 +47,10 @@ type RecommendationResult struct {
 }
 
 type AnalysisResponse struct {
-	HealthScore     float64                   `json:"healthScore"`
-	HealthLevel     string                    `json:"healthLevel"`
-	HealthFactors   []HealthFactor            `json:"healthFactors"`
-	Anomalies       []AnomalyResult           `json:"anomalies"`
+	HealthScore       float64                  `json:"healthScore"`
+	HealthLevel       string                   `json:"healthLevel"`
+	HealthFactors     []HealthFactor           `json:"healthFactors"`
+	Anomalies         []AnomalyResult          `json:"anomalies"`
 	FailurePrediction *FailurePredictionResult `json:"failurePrediction"`
-	Recommendations []RecommendationResult    `json:"recommendations"`
+	Recommendations   []RecommendationResult   `json:"recommendations"`
 }

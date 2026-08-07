@@ -146,13 +146,13 @@ func (r *Repository) QueryLatest(ctx context.Context, deviceID string, n int) ([
 }
 
 type AggregatedPoint struct {
-	Bucket      time.Time `json:"bucket"`
-	AvgTemp     *float64  `json:"avgTemp"`
-	MaxTemp     *float64  `json:"maxTemp"`
-	MinTemp     *float64  `json:"minTemp"`
-	AvgCurrent  *float64  `json:"avgCurrent"`
-	MaxCurrent  *float64  `json:"maxCurrent"`
-	AvgVoltage  *float64  `json:"avgVoltage"`
+	Bucket     time.Time `json:"bucket"`
+	AvgTemp    *float64  `json:"avgTemp"`
+	MaxTemp    *float64  `json:"maxTemp"`
+	MinTemp    *float64  `json:"minTemp"`
+	AvgCurrent *float64  `json:"avgCurrent"`
+	MaxCurrent *float64  `json:"maxCurrent"`
+	AvgVoltage *float64  `json:"avgVoltage"`
 }
 
 func (r *Repository) Aggregate(ctx context.Context, deviceID string, from, to time.Time, window string) ([]AggregatedPoint, error) {
