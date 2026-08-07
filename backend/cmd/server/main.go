@@ -32,6 +32,7 @@ import (
 	"github.com/inframind/backend/internal/organization"
 	"github.com/inframind/backend/internal/otel"
 	"github.com/inframind/backend/internal/telemetry"
+	"github.com/inframind/backend/internal/testing"
 	"github.com/inframind/backend/internal/twin"
 	"github.com/inframind/backend/internal/workorder"
 )
@@ -232,6 +233,14 @@ func main() {
 
 		auth.NewHandler(authSvc).RegisterRoutes(r)
 	})
+
+	// Internal testing endpoints (explicitly opt-in via config).
+	if cfg.EnableTestEndpoints {
+		r.Route("/", func(r chi.Router) {
+			testing.NewHandler(mqttSub).Register(r)
+		})
+		slog.Warn("internal testing endpoints ENABLED - do not use in production")
+	}
 
 	// Register event subscriptions
 	asset.RegisterEvents(bus)

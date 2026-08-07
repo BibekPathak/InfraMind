@@ -1,7 +1,9 @@
 package telemetry
 
 import (
+	"log/slog"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -27,6 +29,10 @@ type Generator struct {
 	DeviceID  string
 	scenarios []ScenarioFunc
 	names     []string
+
+	mu         sync.RWMutex
+	forcedName string // optional: force a specific scenario name
+	localTick  int
 }
 
 func NewGenerator(deviceID string) *Generator {
@@ -42,6 +48,26 @@ func (g *Generator) AddScenario(name string, fn ScenarioFunc) {
 	g.names = append(g.names, name)
 }
 
+// ForceScenario switches the generator to a named scenario on demand. Used by
+// the failure-injection control channel. Falls back to cycling if unknown.
+func (g *Generator) ForceScenario(name string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	if name == "" {
+		g.forcedName = ""
+		g.localTick = 0
+		return
+	}
+	for _, n := range g.names {
+		if n == name {
+			g.forcedName = name
+			g.localTick = 0
+			return
+		}
+	}
+	slog.Warn("unknown scenario, ignoring force", "scenario", name, "deviceId", g.DeviceID)
+}
+
 func (g *Generator) Generate(tick int) Reading {
 	if len(g.scenarios) == 0 {
 		return Reading{
@@ -52,6 +78,19 @@ func (g *Generator) Generate(tick int) Reading {
 			Voltage:     0,
 			Humidity:    0,
 			Scenario:    "idle",
+		}
+	}
+
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	if g.forcedName != "" {
+		for i, n := range g.names {
+			if n == g.forcedName {
+				r := g.scenarios[i](g.localTick)
+				g.localTick++
+				return r
+			}
 		}
 	}
 

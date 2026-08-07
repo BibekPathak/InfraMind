@@ -20,6 +20,11 @@ type Config struct {
 	AI     AIConfig
 	Auth   AuthConfig
 	Timing TimingConfig
+
+	// EnableTestEndpoints exposes internal-only testing endpoints
+	// (POST /internal/testing/fault). Explicit opt-in; never a test-mode
+	// branch in production logic.
+	EnableTestEndpoints bool
 }
 
 type TimingConfig struct {
@@ -102,6 +107,7 @@ func Load() (*Config, error) {
 			TwinSyncInterval:  k.Duration("twin__sync__interval"),
 			ActionInterval:    k.Duration("action__interval"),
 		},
+		EnableTestEndpoints: k.Bool("enable__test__endpoints"),
 	}
 
 	if cfg.Server.Port == 0 {

@@ -22,8 +22,8 @@ type deviceConfig struct {
 }
 
 type simDevice struct {
-	spec   config.DeviceSpec
-	gen    *telemetry.Generator
+	spec config.DeviceSpec
+	gen  *telemetry.Generator
 }
 
 func main() {
@@ -53,6 +53,14 @@ func main() {
 
 	opts.SetOnConnectHandler(func(c mqtt.Client) {
 		slog.Info("mqtt connected", "broker", cfg.MQTTURL)
+		for _, d := range devices {
+			topic := fmt.Sprintf("simulator/%s/fault", d.spec.ID)
+			if tok := c.Subscribe(topic, 1, makeFaultHandler(d.gen)); tok.Wait() && tok.Error() != nil {
+				slog.Warn("subscribe fault topic failed", "topic", topic, "error", tok.Error())
+			} else {
+				slog.Info("subscribed to fault control", "topic", topic)
+			}
+		}
 	})
 	opts.SetConnectionLostHandler(func(c mqtt.Client, err error) {
 		slog.Error("mqtt connection lost", "error", err)
@@ -191,4 +199,21 @@ func fetchDeviceConfig(backendURL, deviceID string) map[string]any {
 	}
 
 	return cfg
+}
+
+// makeFaultHandler returns an MQTT handler that forces a device's generator to
+// switch to the requested fault scenario (failure-injection control channel).
+func makeFaultHandler(gen *telemetry.Generator) mqtt.MessageHandler {
+	return func(c mqtt.Client, msg mqtt.Message) {
+		var req struct {
+			DeviceID string `json:"deviceId"`
+			Fault    string `json:"fault"`
+		}
+		if err := json.Unmarshal(msg.Payload(), &req); err != nil {
+			slog.Warn("fault control: invalid payload", "error", err)
+			return
+		}
+		slog.Info("fault control received", "deviceId", req.DeviceID, "fault", req.Fault)
+		gen.ForceScenario(req.Fault)
+	}
 }

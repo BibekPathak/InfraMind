@@ -143,6 +143,39 @@ func (h *Harness) MQTTPub(topic string, payload []byte) error {
 	return nil
 }
 
+// MQTTSubscribe subscribes to a topic and calls fn on each message. Returns an
+// unsubscribe func via the harness; caller must unsubscribe (or rely on the
+// test finishing). Uses admin creds like MQTTPub.
+func (h *Harness) MQTTSubscribe(t interface{ Cleanup(func()) }, topic string, fn func(payload []byte)) error {
+	opts := mqtt.NewClientOptions()
+	opts.AddBroker(h.cfg.MQTTURL)
+	opts.SetClientID(fmt.Sprintf("harness-sub-%d", time.Now().UnixNano()))
+	opts.SetUsername("mqtt_admin")
+	opts.SetPassword("mqtt_admin_secret")
+	opts.SetConnectTimeout(5 * time.Second)
+	client := mqtt.NewClient(opts)
+	tok := client.Connect()
+	tok.Wait()
+	if tok.Error() != nil {
+		return fmt.Errorf("mqtt connect: %w", tok.Error())
+	}
+
+	// Keep a reference so the subscription stays alive for the test duration.
+	subTok := client.Subscribe(topic, 1, func(c mqtt.Client, m mqtt.Message) {
+		fn(m.Payload())
+	})
+	subTok.Wait()
+	if subTok.Error() != nil {
+		client.Disconnect(250)
+		return fmt.Errorf("mqtt subscribe %s: %w", topic, subTok.Error())
+	}
+
+	if t != nil {
+		t.(interface{ Cleanup(func()) }).Cleanup(func() { client.Disconnect(250) })
+	}
+	return nil
+}
+
 // mqttAdminConnectOK checks whether EMQX accepts the admin MQTT connection.
 func MQTTAdminConnectOK(brokerURL string) bool {
 	opts := mqtt.NewClientOptions()
